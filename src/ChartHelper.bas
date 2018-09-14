@@ -2,7 +2,6 @@ Attribute VB_Name = "ChartHelper"
 Option Explicit
 
 Sub LabelsFromRange()
-Attribute LabelsFromRange.VB_ProcData.VB_Invoke_Func = "E\n14"
     'Sets value of currently selected data labels from a specified range
     Dim LabelRange As Range, cell As Range, i As Long
     Dim Labels As DataLabels
@@ -32,7 +31,6 @@ ExitSub:
 End Sub
 
 Sub FindReplaceinChart()
-Attribute FindReplaceinChart.VB_ProcData.VB_Invoke_Func = "F\n14"
     Dim mySrs As Series
     Dim iPts As Long
     Dim iSrs As Long
@@ -56,7 +54,6 @@ ExitSub:
 End Sub
 
 Sub LastPointLabel()
-Attribute LastPointLabel.VB_ProcData.VB_Invoke_Func = "L\n14"
     Dim mySrs As Series
     Dim iPts As Long
     Dim themeColor As MsoThemeColorIndex
@@ -136,7 +133,6 @@ Attribute LastPointLabel.VB_ProcData.VB_Invoke_Func = "L\n14"
 End Sub
 
 Sub HideAxis()
-Attribute HideAxis.VB_ProcData.VB_Invoke_Func = "X\n14"
     Dim ActiveAxis As Axis
     If ActiveChart Is Nothing Then
         MsgBox "Select a chart axis and try again.", vbExclamation, "No Chart Selected"
@@ -157,3 +153,5 @@ ErrHandler:
         Resume Next
     End If
 End Sub
+
+

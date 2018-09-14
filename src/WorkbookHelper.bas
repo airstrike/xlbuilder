@@ -21,7 +21,6 @@ Private Sub PrepareAutoFitUndo(Rng As Range)
 End Sub
     
 Sub AutoFit()
-Attribute AutoFit.VB_ProcData.VB_Invoke_Func = "m\n14"
     If TypeName(Selection) <> "Range" Then Exit Sub
     
     Dim SU As Boolean
@@ -80,7 +79,6 @@ Private Sub AutoFitUndo()
 End Sub
 
 Sub CycleAccentBackground()
-Attribute CycleAccentBackground.VB_ProcData.VB_Invoke_Func = "K\n14"
     Dim NextColor As Integer
     Dim FillRGB As Long
     Dim CurrentThemeColor As Variant
@@ -132,7 +130,6 @@ Attribute CycleAccentBackground.VB_ProcData.VB_Invoke_Func = "K\n14"
 End Sub
 
 Sub CircSwitch()
-Attribute CircSwitch.VB_ProcData.VB_Invoke_Func = "I\n14"
     On Error Resume Next
     [Circ] = 1 - [Circ]
     Application.StatusBar = "Circularity: " & IIf([Circ], "on", "off")
@@ -141,7 +138,6 @@ Attribute CircSwitch.VB_ProcData.VB_Invoke_Func = "I\n14"
 End Sub
 
 Sub SelectCurrentPage()
-Attribute SelectCurrentPage.VB_ProcData.VB_Invoke_Func = "A\n14"
     Dim Pages As Areas
     Dim Page As Variant
     
@@ -162,7 +158,6 @@ ExitSub:
 End Sub
 
 Sub TogglePageBreaks()
-Attribute TogglePageBreaks.VB_ProcData.VB_Invoke_Func = "T\n14"
     With ActiveSheet
         ActiveSheet.DisplayPageBreaks = Not ActiveSheet.DisplayPageBreaks
     End With
@@ -265,5 +260,7 @@ Sub RemovePrefix()
         End If
     Next
 End Sub
+
+
 
 
