@@ -5,7 +5,6 @@ Function GenerateSignature() As Long
     GenerateSignature = Rnd() * 1000000000
 End Function
 
-
 'Callback As String, Optional ByVal t As Variant = "00:00:03"
 Sub SetTimer(ByVal Callback As String, ByVal Time As String, ParamArray Args() As Variant)
     Dim Signature As Long
@@ -53,7 +52,9 @@ Sub CheckAndExecute(ByVal Callback As String, ByVal Signature As Long, ParamArra
     Dim ArgsString As String
     ArgsString = ArgsAsString(Args)
     If List(Callback) = Signature Then
+        On Error Resume Next
         Application.Run "'" & Callback & " " & ArgsString & "'"
+        On Error GoTo 0
     End If
     Debug.Print
 End Sub

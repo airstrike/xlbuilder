@@ -6,8 +6,14 @@ Type StoreRangeInfo
     Columns() As Variant
     Widths() As Variant
 End Type
-
 Public AutoFitUndoData As StoreRangeInfo
+
+Type FlipSignRangeInfoType
+    OriginalRange As Range
+    Cells() As Variant
+    Formulas() As Variant
+End Type
+Public FlipSignRangeInfo As FlipSignRangeInfoType
 
 Private Sub PrepareAutoFitUndo(Rng As Range)
     ReDim AutoFitUndoData.Columns(1 To Rng.Columns.Count)
@@ -21,6 +27,7 @@ Private Sub PrepareAutoFitUndo(Rng As Range)
 End Sub
     
 Sub AutoFit()
+Attribute AutoFit.VB_ProcData.VB_Invoke_Func = "q\n14"
     If TypeName(Selection) <> "Range" Then Exit Sub
     
     Dim SU As Boolean
@@ -79,6 +86,7 @@ Private Sub AutoFitUndo()
 End Sub
 
 Sub CycleAccentBackground()
+Attribute CycleAccentBackground.VB_ProcData.VB_Invoke_Func = "K\n14"
     Dim NextColor As Integer
     Dim FillRGB As Long
     Dim CurrentThemeColor As Variant
@@ -121,8 +129,11 @@ Sub CycleAccentBackground()
         End Select
         
     FillRGB = .Color 'ActiveWorkbook.Theme.ThemeColorScheme.Colors (NextColor)
-    If (FillRGB Mod 256) + (FillRGB \ 256 Mod 256) + (FillRGB \ 256 ^ 2 Mod 256) >= 383 Then
+    If (FillRGB Mod 256) + (FillRGB \ 256 Mod 256) + (FillRGB \ 256 ^ 2 Mod 256) = 469 Then 'Evercore Blue 2 Exception
+        Selection.Font.themeColor = xlThemeColorDark1 'xlThemeColorDark1
+    ElseIf (FillRGB Mod 256) + (FillRGB \ 256 Mod 256) + (FillRGB \ 256 ^ 2 Mod 256) >= 383 Then
         Selection.Font.themeColor = xlThemeColorLight1 'xlThemeColorDark1
+    Else
     End If
                 
     End With
@@ -130,6 +141,7 @@ Sub CycleAccentBackground()
 End Sub
 
 Sub CircSwitch()
+Attribute CircSwitch.VB_ProcData.VB_Invoke_Func = "I\n14"
     On Error Resume Next
     [Circ] = 1 - [Circ]
     Application.StatusBar = "Circularity: " & IIf([Circ], "on", "off")
@@ -138,6 +150,7 @@ Sub CircSwitch()
 End Sub
 
 Sub SelectCurrentPage()
+Attribute SelectCurrentPage.VB_ProcData.VB_Invoke_Func = "A\n14"
     Dim Pages As Areas
     Dim Page As Variant
     
@@ -158,6 +171,7 @@ ExitSub:
 End Sub
 
 Sub TogglePageBreaks()
+Attribute TogglePageBreaks.VB_ProcData.VB_Invoke_Func = "T\n14"
     With ActiveSheet
         ActiveSheet.DisplayPageBreaks = Not ActiveSheet.DisplayPageBreaks
     End With
@@ -233,10 +247,19 @@ Sub UnhideEverySheet()
     Next
 End Sub
 
+Sub DeleteHiddenSheets()
+    Dim Sht As Worksheet
+    For Each Sht In ActiveWorkbook.Sheets
+        If Sht.Visible <> xlSheetVisible Then Sht.Delete
+    Next
+End Sub
+
 Sub ResetZoom()
-    ActiveWindow.Zoom = 80
+    Application.ScreenUpdating = False
+    ActiveWindow.Zoom = 85
     ActiveWindow.View = IIf(ActiveWindow.View = xlPageBreakPreview, xlNormalView, xlPageBreakPreview)
-    ActiveWindow.Zoom = 80
+    ActiveWindow.Zoom = 85
+    Application.ScreenUpdating = True
     Application.OnKey "{F8}", "ResetZoom"
 End Sub
 
@@ -251,16 +274,93 @@ End Sub
 
 Sub RemovePrefix()
     Dim r As Range
-    Dim temp As String
+    Dim TEMP As String
     For Each r In Selection
         If r.PrefixCharacter <> vbNullString Then
-            temp = r.Text
+            TEMP = r.Text
             r.Clear
-            r.Value = temp
+            r.Value = TEMP
         End If
     Next
 End Sub
 
+Private Sub PrepareFlipSignRangeInfo(ByRef Rng As Range)
+    Set FlipSignRangeInfo.OriginalRange = Rng
+    ReDim FlipSignRangeInfo.Formulas(1 To Rng.Count)
+    Dim i As Long
+    i = 1
+    For i = 1 To Rng.Count
+        FlipSignRangeInfo.Formulas(i) = Rng.Cells(i).Formula
+    Next
+End Sub
 
+Private Sub FlipSignUndo()
+    Dim i As Long, FlippedFormula As String, CurrentFormula As String
+    For i = 1 To UBound(FlipSignRangeInfo.Cells)
+        CurrentFormula = FlipSignRangeInfo.OriginalRange.Cells(i).Formula
+        FlippedFormula = FlipSignRangeInfo.Formulas(i)
+        FlipSignRangeInfo.OriginalRange.Cells(i) = FlippedFormula
+        FlipSignRangeInfo.Formulas(i) = CurrentFormula
+    Next
+    
+    Application.OnUndo "Undo the undoing of the FlipSign macro", "FlipSign"
+    Application.OnRepeat "Undo the undoing of the FlipSign macro", "FlipSign"
+End Sub
 
+Sub FlipSign()
+    Dim Rng As Range, Cell As Range
+    Set Rng = Selection
+    
+    If FlipSignRangeInfo.OriginalRange Is Nothing Then
+    Else
+        If Rng.Address = FlipSignRangeInfo.OriginalRange.Address Then
+            Call FlipSignUndo
+            GoTo EndSub
+        End If
+    End If
+    
+    Call PrepareFlipSignRangeInfo(Rng)
+    For Each Cell In Rng
+        Cell.Formula = FlipCellFormula(Cell.Formula)
+    Next
+    
+EndSub:
+    Application.OnUndo "Undo the FlipSign macro", "FlipSignUndo"
+End Sub
 
+Private Function FlipCellFormula(ByVal Formula As String)
+    If Left(Formula, 1) = "-" Then
+        FlipCellFormula = Mid(Formula, 2, Len(Formula) - 1)
+    ElseIf Left(Formula, 1) <> "=" Then
+        FlipCellFormula = "-" & Formula
+    ElseIf Left(Formula, 2) = "=-" Then
+        FlipCellFormula = "=" & Mid(Formula, 3, Len(Formula) - 2)
+    ElseIf (InStr(Formula, "+") + InStr(Formula, "(")) > 0 Then
+        FlipCellFormula = "=-(" & Mid(Formula, 2, Len(Formula) - 1) & ")"
+    Else
+        FlipCellFormula = "=-" & Mid(Formula, 2, Len(Formula) - 1)
+    End If
+End Function
+
+Sub UnderlineToggle()
+Attribute UnderlineToggle.VB_ProcData.VB_Invoke_Func = "u\n14"
+    Dim UnderlineState As XlUnderlineStyle
+    UnderlineState = Selection.Cells(1, 1).Font.Underline
+    
+    On Error Resume Next
+    
+    With Selection.Font
+    Select Case UnderlineState
+    
+    Case xlUnderlineStyleSingle
+        .Underline = xlUnderlineStyleSingleAccounting
+    
+    Case xlUnderlineStyleSingleAccounting
+        .Underline = xlUnderlineStyleNone
+        
+    Case xlUnderlineStyleNone
+        .Underline = xlUnderlineStyleSingle
+    
+    End Select
+    End With
+End Sub

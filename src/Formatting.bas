@@ -104,4 +104,3 @@ NoSkip:
     Call DelayedResetStatusBar
     
 End Sub
-
