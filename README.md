@@ -1,11 +1,4 @@
------------------------------------
- TERRA ADD-IN
- Version: 0.1 (5/3/2018 13:37 EDT)
- Copyright (c) 2018 Andy Terra 
- github.com/airstrike/Terra
------------------------------------
-
-# INSTALLATION INSTRUCTIONS
+## Install
 
 1. Copy Terra.xlam in this folder to a local folder in your computer (like 'My Documents')
 2. Open Excel and press `Alt`, `T`, `I`
@@ -13,15 +6,15 @@
 4. Find the add-in *in your local folder* and install it
 
 
-# USAGE
+## Usage
 - Excel Workbook macros can be easily accessed by pressing / twice, followed by a hotkey
 - Additional macros are available when a chart is selected
 
 
-# AVAILABLE HOTKEYS IN THIS VERSION
+## Available hotkeys in this version
 
-WORKBOOK HOTKEYS
-----------------
+### Workbook Hotkeys
+
 c   Toggle circularity on / off. Assumes there's a cell called "Circ" with a number
     1 or 0 in it. Fails silently otherwise
 
