@@ -11,7 +11,7 @@
 - Additional macros are available when a chart is selected
 
 
-## Available hotkeys in this version
+## Hotkeys available in this version
 
 ### Workbook Hotkeys
 

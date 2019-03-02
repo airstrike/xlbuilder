@@ -255,10 +255,12 @@ Sub DeleteHiddenSheets()
 End Sub
 
 Sub ResetZoom()
+    On Error Resume Next
     Application.ScreenUpdating = False
     ActiveWindow.Zoom = 85
     ActiveWindow.View = IIf(ActiveWindow.View = xlPageBreakPreview, xlNormalView, xlPageBreakPreview)
     ActiveWindow.Zoom = 85
+    ActiveSheet.DisplayPageBreaks = ActiveSheet.DisplayPageBreaks 'Refreshes view in some weird instances
     Application.ScreenUpdating = True
     Application.OnKey "{F8}", "ResetZoom"
 End Sub
