@@ -1,4 +1,4 @@
-import copy, datetime, glob, io, logging, os, re, sys
+import argparse, ast, copy, datetime, glob, logging, os, re, sys
 import xml.etree.ElementTree as ET
 
 import colorama
@@ -73,9 +73,9 @@ class XLBuilder(object):
     XL = None
     WB = None
     working_dir = BASE_DIR
-    source_file_dir = rel(BASE_DIR, 'src')
+    source_dir = rel(BASE_DIR, 'src')
     XlFileFormat = None # implement in subclass
-    file_name = 'XLBuilderFile'
+    output_file = 'XLBuilderFile'
 
     dry = False # dry run?
 
@@ -84,16 +84,16 @@ class XLBuilder(object):
         return FILE_FORMAT.get(self.XlFileFormat, None)
 
     @property
-    def file_name_with_extension(self):
-        return self.file_name + self.extension
+    def output_file_with_extension(self):
+        return self.output_file + self.extension
 
     @property
     def full_file_path(self):
-        return rel(self.working_dir, self.file_name_with_extension)
+        return rel(self.working_dir, self.output_file_with_extension)
 
     @property
-    def source_files(self, match='ChartHelper.bas'):
-        return glob.glob(os.path.join(self.source_file_dir, match))
+    def source_files(self, match='*.*'):
+        return glob.glob(os.path.join(self.source_dir, match))
 
 
     def __init__(self, *args, **kwargs):
@@ -101,6 +101,7 @@ class XLBuilder(object):
         logger.info('Initiating build %s (%s)' % (
             TAGS['Version'], TAGS['Timestamp']))
         self.working_dir = kwargs.get('working_dir', self.working_dir)
+        self.source_dir = kwargs.get('source_dir', self.source_dir)
         self.dry = kwargs.get('dry', self.dry)
         logger.info('Working dir: %s' % self.working_dir)
         logger.debug('Opening Excel')
@@ -118,20 +119,21 @@ class XLBuilder(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         logger.debug('Saving Workbook: %s' % self.full_file_path)
-        self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
+        if not self.dry: self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
         logger.debug('Closing Workbook')
-        self.WB.Close()
+        if not self.dry: self.WB.Close()
         logger.debug('Quitting Excel')
-        self.XL.Application.Quit()
-        del self.XL
+        if not self.dry:
+            self.XL.Application.Quit()
+            del self.XL
 
     def add_files(self):
-        logger.debug(f'Adding modules from {self.source_file_dir}')
+        logger.debug(f'Adding modules from {self.source_dir}')
         for x, eachfilepath in enumerate(self.source_files):
-            logger.debug('Adding script file: %s' % eachfilepath)
             (file_path, file_name) = os.path.split(eachfilepath)
             if not self.dry:
-                with io.open(eachfilepath, 'rt', newline='\n') as eachfile:
+                with open(eachfilepath, 'rt') as eachfile:
+                    tag_dict = None
                     eachmodule = self.WB.VBProject.VBComponents.Add(1)
                     for i, line in enumerate(eachfile):
                         linestrip = line.strip()
@@ -139,34 +141,33 @@ class XLBuilder(object):
                         tag_match = self.tag_pattern.match(line)
                         attribute_match = self.attribute_pattern.match(line)
                         vbname_match = self.vbname_pattern.match(line)
+                        sub_match = self.sub_pattern.match(line)
                         if tag_match:
-                            logger.debug(f'Matches {tag_match.group(1)}')
-                        elif vbname_match:
-                            if file_name == 'ChartHelper.bas' and i < 20: logger.debug(f'VBName Match: {linestrip}')
-                            eachmodule.Name = vbname_match.group(1)
-                            logger.critical(f'Renamed  model to {vbname_match.group(1)}')
-                        elif attribute_match:
-                            if file_name == 'ChartHelper.bas' and i < 20: logger.debug(f'Attr Match:   {linestrip}')
-                            # logger.critical(f'Matches {attribute_match.group(1)}')
-                            z = 1 # must skip attributes if we're using AddFromString
-                            eachmodule.CodeModule.AddFromString("'Attribute match    \r\n")
-                        elif not line.strip():
-                            if file_name == 'ChartHelper.bas' and i < 20: logger.debug(f"Empty {line_length}:   '{linestrip}'")
-                            eachmodule.CodeModule.AddFromString("'Empty line    \r\n")
-                        else:
-                            if file_name == 'ChartHelper.bas' and i < 20: logger.debug(f'Else {line_length}:   {linestrip}')
-                            # if file_name == 'ChartHelper': logger.critical(f'Matches {attribute_match.group(1)}')
-                            eachmodule.CodeModule.AddFromString(line)
+                            tag_dict = ast.literal_eval(tag_match.group(1))
+                            logger.debug(f'Matches {tag_dict}')
+
+                        if sub_match: # tag_dict is not None: # meaning the last line was a tag
+                            logger.debug(f'Sub {sub_match.group(0)}')
+                            #TODO: do something with tags
+
+                        tag_dict = None
+
+                    eachmodule.CodeModule.AddFromFile(eachfilepath)
+                    logger.info(f'Added file from {eachfilepath} with name {eachmodule.Name}')
+
+class XLSMBuilder(XLBuilder):
+    XlFileFormat = '52'
 
 
 class XLAMBuilder(XLBuilder):
     XlFileFormat = 55
-    file_name = 'ribbon'
 
     def __init__(self, *args, **kwargs):
-        self.tag_pattern = re.compile("^'@register\((.*)\)$")
-        self.attribute_pattern = re.compile("^Attribute (.*)$")
-        self.vbname_pattern = re.compile('^Attribute VB_Name = "(.*)".*$')
+        self.output_file = kwargs.get('output_file', self.output_file)
+        self.tag_pattern = re.compile("^'@register\((.*)\)")
+        self.attribute_pattern = re.compile("^Attribute (.*)")
+        self.vbname_pattern = re.compile('^Attribute VB_Name = "(.*)"')
+        self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
         super(XLAMBuilder, self).__init__(*args, **kwargs)
         self.build_ribbon()
 
@@ -176,14 +177,39 @@ class XLAMBuilder(XLBuilder):
     def add_ribbon(self, ribbon):
         pass
 
-def run():
+class RibbonButton(dict):
+    def __missing__(self, key):
+        if key == 'btnid':
+            return self['label'] + '__id'
+        raise KeyError(key)
+
+
+parser = argparse.ArgumentParser(prog="xlbuilder.py")
+parser.add_argument(dest='output_file', nargs='?', default='XLBuilder', help='name of output file')
+parser.add_argument('--dry', '-d', action='store_true', default=False,
+        help="dry-run (does not create any files)")
+parser.add_argument('source_dir', default='src', nargs='?', help='Directory containing source modules')
+parser.add_argument('--verbose', '-v', action='count', default=0)
+parser.add_argument('--type', default='xlam', choices=['xlam', 'xlsm'],
+        help='Type of output_file to be built (default: xlam)')
+args = parser.parse_args()
+
+def run(args):
     logger.debug('Starting run function')
 
-    with XLAMBuilder(dry=False) as builder:
-        pass
+    if args.type == 'xlam':
+        with XLAMBuilder(dry=args.dry, output_file=args.output_file) as builder:
+            pass
+
+    if args.type == 'xlsm':
+        with XLSMBuilder(dry=args.dry, output_file=args.output_file) as builder:
+            pass
 
 
 if __name__ == '__main__':
-    logger.setLevel('DEBUG')
+    levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+    level = levels[min(len(levels)-1, args.verbose)]
+    logger.setLevel(level)
     logger.debug('Running as main program')
-    run()
+    logger.debug(args)
+    run(args)
