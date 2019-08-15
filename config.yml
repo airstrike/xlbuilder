@@ -1,0 +1,23 @@
+type: xlam
+
+input: src
+output: Terra.xlam
+
+tags:
+    name: Terra Add-in
+    author: Andy Terra
+    e-mail: andy@andyterra.com
+    website: https://excel.andyterra.com
+    version: 0.4
+
+ribbon:
+    Terra:
+        context: normal # optional, default: normal
+        keytip: /
+        after: TabView
+
+    Terra Chart:
+        context: chart
+        keytip: .
+        label: Terra # optional, default: same as group name
+
