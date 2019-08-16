@@ -25,7 +25,7 @@ class UpdateableZipFile(ZipFile):
         # Whether the with statement was called
         self._allow_updates = False
 
-    def writestr(self, zinfo_or_arcname, bytes, compress_type=None):
+    def writestr(self, zinfo_or_arcname, data, compress_type=None):
         if isinstance(zinfo_or_arcname, ZipInfo):
             name = zinfo_or_arcname.filename
         else:
@@ -36,11 +36,11 @@ class UpdateableZipFile(ZipFile):
         if self._allow_updates and name in self.namelist():
             temp_file = self._replace[name] = self._replace.get(name,
                                                                 tempfile.TemporaryFile())
-            temp_file.write(bytes)
+            temp_file.write(data)
         # Otherwise just act normally
         else:
             super(UpdateableZipFile, self).writestr(zinfo_or_arcname,
-                                                    bytes, compress_type=compress_type)
+                                                    data, compress_type=compress_type)
 
     def write(self, filename, arcname=None, compress_type=None):
         arcname = arcname or filename
@@ -75,7 +75,7 @@ class UpdateableZipFile(ZipFile):
             self._allow_updates = False
 
     def _close_all_temp_files(self):
-        for temp_file in self._replace.itervalues():
+        for temp_file in self._replace.values():
             if hasattr(temp_file, 'close'):
                 temp_file.close()
 
@@ -107,7 +107,7 @@ class UpdateableZipFile(ZipFile):
                             replacement.close()
                         else:
                             data = zip_read.read(item.filename)
-                        zip_write.writestr(item, data)
+                        zip_write.writestr(item, data.encode('utf-8'))
             # Override the archive with the updated one
             shutil.move(temp_zip_path, self.filename)
         finally:
