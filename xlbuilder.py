@@ -93,7 +93,7 @@ class XLBuilder(object):
 
     @property
     def full_file_path(self):
-        return os.path.normpath(os.path.splitext(self.output)[0] + self.extension)
+        return os.path.normpath(os.path.join(os.getcwd(), os.path.splitext(self.output)[0] + self.extension))
 
     @property
     def source_file_list(self):
