@@ -169,12 +169,12 @@ class XLBuilder(object):
                 logger.critical(f'Error quitting Excel')
 
             self.XL.Application.Quit()
+            del self.XL
 
         else:
             logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
             logger.debug(f'Quitting Excel {self.dry_msg}')
 
-        del self.XL
 
 class XLSMBuilder(XLBuilder):
     XlFileFormat = '52'
