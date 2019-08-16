@@ -26,7 +26,7 @@ Private Sub PrepareAutoFitUndo(Rng As Range)
     Next
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Productivity', 'label':'Circularity Toggle', 'size':'normal', 'keytip':'C', 'image':'CircularReferences'})
+'@register({'tab':'Terra', 'group':'Productivity', 'label':'Circularity Toggle', 'keytip':'C', 'image':'CircularReferences'})
 Sub CircSwitch()
     On Error Resume Next
     [Circ] = 1 - [Circ]
@@ -35,7 +35,7 @@ Sub CircSwitch()
 
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Productivity', 'label':'Auto Fit Columns', 'size':'normal', 'keytip':'W', 'image':'ColumnWidth'})
+'@register({'tab':'Terra', 'group':'Productivity', 'label':'Auto Fit Columns', 'keytip':'W', 'image':'ColumnWidth'})
 Sub AutoFit()
     If TypeName(Selection) <> "Range" Then Exit Sub
 
@@ -93,7 +93,7 @@ Private Sub AutoFitUndo()
 
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Productivity', 'label':'Fill Toggle', 'size':'normal', 'keytip':'K', 'image':'AppointmentColorDialog'})
+'@register({'tab':'Terra', 'group':'Productivity', 'label':'Fill Toggle', 'keytip':'K', 'image':'AppointmentColorDialog'})
 Sub CycleAccentBackground()
     Dim NextColor As Integer
     Dim FillRGB As Long
@@ -148,7 +148,7 @@ Sub CycleAccentBackground()
 
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Productivity', 'label':'Select Current Page', 'size':'normal', 'keytip':'A', 'image':'ZoomFitToWindow'})
+'@register({'tab':'Terra', 'group':'Productivity', 'label':'Select Current Page', 'keytip':'A', 'image':'ZoomFitToWindow'})
 Sub SelectCurrentPage()
     Dim Pages As Areas
     Dim Page As Variant
@@ -169,7 +169,7 @@ Sub SelectCurrentPage()
 ExitSub:
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Sheets', 'label':'Remove Unused Number Formats', 'size':'normal', 'keytip':'!F', 'image':'PrintTitles'})
+'@register({'tab':'Terra', 'group':'Sheets', 'label':'Remove Unused Number Formats', 'keytip':'!F', 'image':'PrintTitles'})
 Sub RemoveUnusedNumberFormats()
   Dim strOldFormat As String
   Dim strNewFormat As String
@@ -233,14 +233,14 @@ Exit_Sub:
   Application.Cursor = xlDefault
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Sheets', 'label':'Toggle Page Breaks', 'size':'normal', 'keytip':'SB', 'image':'PrintTitles'})
+'@register({'tab':'Terra', 'group':'Sheets', 'label':'Toggle Page Breaks', 'keytip':'SB', 'image':'PrintTitles'})
 Sub TogglePageBreaks()
     With ActiveSheet
         ActiveSheet.DisplayPageBreaks = Not ActiveSheet.DisplayPageBreaks
     End With
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Sheets', 'label':'Unhide Every Sheet', 'size':'normal', 'keytip':'SU', 'image':'ReviewCompareMenu'})
+'@register({'tab':'Terra', 'group':'Sheets', 'label':'Unhide Every Sheet', 'keytip':'SU', 'image':'ReviewCompareMenu'})
 Sub UnhideEverySheet()
     Dim Sht As Worksheet
     For Each Sht In ActiveWorkbook.Sheets
@@ -248,7 +248,7 @@ Sub UnhideEverySheet()
     Next
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Sheets', 'label':'Delete Hidden Sheets', 'size':'normal', 'keytip':'SD', 'image':'SheetDelete'})
+'@register({'tab':'Terra', 'group':'Sheets', 'label':'Delete Hidden Sheets', 'keytip':'SD', 'image':'SheetDelete'})
 Sub DeleteHiddenSheets()
     If MsgBox("This will delete every hidden sheet without confirmation! Are you sure?", vbYesNo) = vbNo Then Exit Sub
     Dim Sht As Worksheet
@@ -257,7 +257,7 @@ Sub DeleteHiddenSheets()
     Next
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Sheets', 'label':'Reset Zoom Levels', 'size':'normal', 'keytip':'SZ', 'image':'ZoomToSelection'})
+'@register({'tab':'Terra', 'group':'Sheets', 'label':'Reset Zoom Levels', 'keytip':'SZ', 'image':'ZoomToSelection'})
 Sub ResetZoom()
     On Error Resume Next
     Application.ScreenUpdating = False
@@ -269,7 +269,7 @@ Sub ResetZoom()
     Application.OnKey "{F8}", "ResetZoom"
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Cells', 'label':'Fix Comments', 'size':'normal', 'keytip':'CM', 'image':'ReviewNewComment'})
+'@register({'tab':'Terra', 'group':'Cells', 'label':'Fix Comments', 'keytip':'CM', 'image':'ReviewNewComment'})
 Sub ResetComments()
     Dim pComment As Comment
     For Each pComment In Application.ActiveSheet.Comments
@@ -279,7 +279,7 @@ Sub ResetComments()
     Next
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Cells', 'label':"Remove ' Prefix", 'size':'normal', 'keytip':'CP', 'image':'ReviewNewComment'})
+'@register({'tab':'Terra', 'group':'Cells', 'label':"Remove ' Prefix", 'keytip':'CP', 'image':'ReviewNewComment'})
 Sub RemovePrefix()
     Dim r As Range
     Dim TEMP As String
@@ -315,7 +315,7 @@ Private Sub FlipSignUndo()
     Application.OnRepeat "Undo the undoing of the FlipSign macro", "FlipSign"
 End Sub
 
-'@register({'ribbon':'Terra', 'group':'Cells', 'label':'Flip Sign', 'size':'normal', 'keytip':'C-', 'image':'PivotPlusMinusButtonsShowHide'})
+'@register({'tab':'Terra', 'group':'Cells', 'label':'Flip Sign', 'keytip':'C-', 'image':'PivotPlusMinusButtonsShowHide'})
 Sub FlipSign()
     Dim Rng As Range, Cell As Range
     Set Rng = Selection
@@ -351,7 +351,7 @@ Private Function FlipCellFormula(ByVal Formula As String)
     End If
 End Function
 
-'@register({'ribbon':'Terra', 'group':'Cells', 'label':'Toggle Underline', 'size':'normal', 'keytip':'CU', 'image':'UnderlineWords'})
+'@register({'tab':'Terra', 'group':'Cells', 'label':'Toggle Underline', 'keytip':'CU', 'image':'UnderlineWords'})
 Sub UnderlineToggle()
     Dim UnderlineState As XlUnderlineStyle
     UnderlineState = Selection.Cells(1, 1).Font.Underline
