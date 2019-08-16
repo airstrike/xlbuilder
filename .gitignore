@@ -1,0 +1,7 @@
+~$*
+*.sw*
+*.xlam
+*.xml
+*.xlsm
+__pycache__
+.git/
