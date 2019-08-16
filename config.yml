@@ -12,12 +12,12 @@ tags:
 
 ribbon:
     Terra:
-        context: normal # optional, default: normal
+        type: normal # optional, default: normal
         keytip: /
         after: TabView
 
     Terra Chart:
-        context: chart
+        type: chart
         keytip: .
         label: Terra # optional, default: same as group name
 

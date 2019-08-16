@@ -1,5 +1,5 @@
 ﻿# build-in libraries
-from pprint import pprint as pp #TODO: removeme
+from pprint import pprint as pp, pformat as pf #TODO: removeme
 import argparse, ast, copy, datetime, glob, itertools, logging, os, re, sys
 from collections import OrderedDict
 from functools import wraps
@@ -7,6 +7,8 @@ from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 # third-party libraries
+from utils import UpdateableZipFile
+from bs4 import BeautifulSoup
 import colorful
 import win32com.client
 from pywintypes import com_error
@@ -16,11 +18,11 @@ import yaml
 # http://uran198.github.io/en/python/2016/07/12/colorful-python-logging.html
 with colorful.with_16_ansi_colors() as c:
     LOG_COLORS = {
-        logging.ERROR: c.on_red,
-        logging.WARNING: c.on_yellow,
-        logging.DEBUG: c.on_cyan,
-        logging.CRITICAL: c.on_magenta,
-        logging.INFO: c.on_blue,
+        logging.ERROR: c.red,
+        logging.WARNING: c.yellow,
+        logging.DEBUG: c.cyan,
+        logging.CRITICAL: c.magenta,
+        logging.INFO: c.green,
     }
 
 class ColorFormatter(logging.Formatter):
@@ -36,9 +38,9 @@ class ColorFormatter(logging.Formatter):
                 # hide level name for repeated log messages with the same level
                 if new_record.levelno != self.last_levelno:
                     levelname = new_record.levelname
-                    new_record.levelname = f'{c.bold}{levelcolor} {levelname:<9}{c.reset}'
+                    new_record.levelname = f'{levelcolor}{levelname:<9}{c.reset}'
                 else:
-                    new_record.levelname = f'{c.bold}{c.reset}{levelcolor}          {c.reset}'
+                    new_record.levelname = f'{c.reset}{levelcolor}         {c.reset}'
             self.last_levelno = new_record.levelno
             return super(ColorFormatter, self).format(new_record, *args, **kwargs)
 
@@ -47,9 +49,6 @@ handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.addHandler(handler)
-
-# boilerplate helper functions
-rel = lambda *x: os.path.join('.', *x)
 
 FILE_FORMAT = {
     # https://docs.microsoft.com/en-us/office/vba/api/excel.xlfileformat
@@ -73,11 +72,11 @@ def handle_exceptions(fn):
 
 def exception_handler(e):
     if e.excepinfo[5] == '-2147352567':
-        logger.critical(f'Path not found.')
-        logger.critical(f'{self.config}')
+        logger.error(f'Path not found.')
+        logger.error(f'{self.config}')
 
     else:
-        logger.critical(e)
+        logger.error(e)
 
 class XLBuilder(object):
     XL = None
@@ -129,20 +128,39 @@ class XLBuilder(object):
                     eachmodule = SimpleNamespace(Name=file_name[:-4])
 
                 for i, line in enumerate(eachfile):
-                    linestrip = line.strip() #TODO: remove if not needed
-                    line_length = len(line) #TODO: remove if not needed
                     tag_match = self.tag_pattern.match(line)
                     sub_match = self.sub_pattern.match(line)
                     if tag_match:
                         tag_dict = ast.literal_eval(tag_match.group(1))
-                        logger.debug(f'Matches {tag_dict}')
 
-                    # if sub_match: # tag_dict is not None: # meaning the last line was a tag
-                    elif tag_dict is not None: logger.debug(f'Sub {sub_match.group(0)}')
-                        #TODO: do something with tags
+                    elif tag_dict is not None: # meaning the last line was a tag
+                        tag_dict['onAction'] = tag_dict.get('onAction', f'call{sub_match.group(1)}')
+                        tag_dict['id'] = tag_dict.get('id', f'id{sub_match.group(1)}')
+                        tag_dict['group_id'] = tag_dict.get('group_id', f'group_{tag_dict["group"]}')
+                        tag_dict['size'] = tag_dict.get('size', 'normal')
 
-                    tag_dict = None
-                    tag_match = None
+                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}']"
+                        tab = self.ribbon.find(ribbon_tab_path)
+
+                        # if this is the first tag matching this group and tab, check that the
+                        # group exists and create it if it doesn't
+                        try:
+                            group = tab.find(f"group[@={tag_dict['group_id']}")
+                        except TypeError:
+                            group = ET.SubElement(tab, 'group', attrib={
+                                'id': f"{tag_dict['group_id']}",
+                                'label': f"{tag_dict['group']}"
+                            })
+
+                        # create a dictionary for the ribbon button based on annotation
+                        # and remove extraneous attributes
+                        button_dict = tag_dict
+                        for key in ('group', 'group_id', 'tab'): button_dict.pop(key)
+
+                        ET.SubElement(group, 'button', attrib=button_dict)
+
+                        tag_dict = None
+                        tag_match = None
 
                 if not self.dry:
                     eachmodule.CodeModule.AddFromFile(eachfilepath)
@@ -160,7 +178,7 @@ class XLBuilder(object):
                 self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
                 logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
             except com_error as e:
-                logger.critical(f'Error saving output file: {self.full_file_path}')
+                logger.error(f'Error saving output file: {self.full_file_path}')
 
             try:
                 self.WB.Close()
@@ -181,16 +199,25 @@ class XLSMBuilder(XLBuilder):
 
 class XLAMBuilder(XLBuilder):
     XlFileFormat = 55
+    ribbon = {}
+
+    @property
+    def ribbon_file_path(self):
+        return os.path.normpath(os.path.splitext(self.output)[0] + '.xml')
 
     def __init__(self, *args, **kwargs):
-        self.output = kwargs.get('output', self.output)
+        self.ribbon = kwargs.get('ribbon', self.ribbon)
         self.tag_pattern = re.compile("^'@register\((.*)\)")
         self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
-
         super(XLAMBuilder, self).__init__(*args, **kwargs)
 
     def build(self, callback=None):
         super(XLAMBuilder, self).build(self.build_ribbon)
+        self.ribbon.write(open(self.ribbon_file_path, 'w'), encoding='unicode')
+        bs = BeautifulSoup(open(self.ribbon_file_path), 'html.parser')
+        with open(self.ribbon_file_path, 'w') as f:
+            f.write(bs.prettify())
+        logger.debug(f"Saved ribbon file to {self.ribbon_file_path}")
         if callback is not None: callback()
 
     def build_ribbon(self, *args, **kwargs):
@@ -229,6 +256,23 @@ def run():
     except FileNotFoundError:
         config = {}
 
+
+    xml = ET.ElementTree(ET.fromstring('<customUI><ribbon><tabs></tabs><contextualtabs></contextualtabs></ribbon></customUI>'))
+    for customUI in xml.iter('customUI'):
+        customUI.set('xmlns', 'http://schemas.microsoft.com/office/2006/01/customui')
+    tabs = [i for i in xml.iter('tabs')][0]
+    contextualtabs = [i for i in xml.iter('contextualtabs')][0]
+
+    for key, values in config.get('ribbon', {}).items():
+        values['id'] = values.get('id', ''.join(key.split()))
+        if values.get('type') == 'chart':
+            parent = contextualtabs.find("tabSet[idMso='TabSetChartTools']")
+            if parent is None:
+                parent = ET.SubElement(contextualtabs, 'tabSet', attrib={'idMso': 'TabSetChartTools'})
+        else:
+            parent = tabs
+        element = ET.SubElement(parent, 'tab', attrib=values)
+
     context = {
         'config': config,
         'verbose': config.get('verbose', args.verbose),
@@ -237,7 +281,7 @@ def run():
         'output': config.get('output', args.output),
         'input': config.get('input', args.input),
         'tags': config.get('tags', {}),
-        'ribbon': config.get('ribbon', {}),
+        'ribbon': xml,
     }
 
     levels = [logging.WARNING, logging.INFO, logging.DEBUG]
@@ -260,7 +304,7 @@ def run():
 
     # user may have provided just the directory name rather than a fullpath
     context['input'] = [
-            os.path.normpath(rel('.', x))
+            os.path.normpath(os.path.join('.', x))
             for x in context['input']
     ]
 
