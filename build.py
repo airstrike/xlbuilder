@@ -1,22 +1,17 @@
-﻿from pprint import pprint as p #TODO: removeme
-import argparse, ast, copy, datetime, glob, logging, os, re, sys
+﻿# build-in libraries
+from pprint import pprint as p #TODO: removeme
+import argparse, ast, copy, datetime, glob, itertools, logging, os, re, sys
 from collections import OrderedDict
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
-import yaml
 
-import colorama
-from colorama import init as colorama_init
-colorama_init()
+# third-party libraries
 import colorful
 import win32com.client
-
-# with colorful.with_8_ansi_colors() as c:
-    # print(c.on_red('I am red'))
+import yaml
 
 # inspired by
 # http://uran198.github.io/en/python/2016/07/12/colorful-python-logging.html
-# modified by yours truly
 with colorful.with_16_ansi_colors() as c:
     LOG_COLORS = {
         logging.ERROR: c.on_red,
@@ -51,8 +46,8 @@ handler.setFormatter(formatter)
 logger = logging.getLogger(__name__)
 logger.addHandler(handler)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-rel = lambda *x: os.path.join(BASE_DIR, *x)
+# boilerplate helper functions
+rel = lambda *x: os.path.join('.', *x)
 
 FILE_FORMAT = {
     # https://docs.microsoft.com/en-us/office/vba/api/excel.xlfileformat
@@ -67,29 +62,24 @@ FILE_FORMAT = {
 class XLBuilder(object):
     XL = None
     WB = None
-    working_dir = BASE_DIR
-    input_files = rel(BASE_DIR, './src/*.*')
+    working_dir = '.'
+    input_files = './src/*.*'
     XlFileFormat = None # implement in subclass
     output_file = 'XLBuilderFile'
-
     dry = False # dry run?
+    dry_msg = ''
 
     @property
     def extension(self):
         return FILE_FORMAT.get(self.XlFileFormat, None)
 
     @property
-    def output_file_with_extension(self):
-        return os.path.splitext(self.output_file)[0] + self.extension
-
-    @property
     def full_file_path(self):
-        return rel(self.working_dir, self.output_file_with_extension)
+        return os.path.normpath(os.path.splitext(self.output_file)[0] + self.extension)
 
     @property
     def source_file_list(self):
-        return glob.glob(os.path.join(self.input_files))
-
+        return itertools.chain(*[glob.glob(x) for x in self.input_files])
 
     def __init__(self, *args, **kwargs):
         super(XLBuilder, self).__init__()
@@ -98,29 +88,17 @@ class XLBuilder(object):
         self.input_files = kwargs.get('input_files', self.input_files)
         self.output_file = kwargs.get('output_file', self.output_file)
         self.dry = kwargs.get('dry', self.dry)
-        logger.debug('Opening Excel' + ' (not really due to dry run)' if self.dry else '')
-        logger.debug('Creating Workbook' + ' (not really due to dry run)' if self.dry else '')
+        if self.dry: self.dry_msg = '(not really due to dry run)'
+
+    def build(self, callback=None):
+        logger.debug(f'Opening Excel {self.dry_msg}')
+        logger.debug(f'Creating Workbook {self.dry_msg}')
         if not self.dry:
             self.XL = win32com.client.DispatchEx('Excel.Application')
             self.XL.Visible = False
             self.XL.Application.DisplayAlerts = False
             self.WB = self.XL.Workbooks.Add()
-        self.add_files()
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if not self.dry: self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
-        logger.info('Saved output file: %s' % self.full_file_path +
-                ' (not really due to dry run)' if self.dry else '')
-        if not self.dry: self.WB.Close()
-        logger.debug('Quitting Excel' + ' (not really due to dry run)' if self.dry else '')
-        if not self.dry:
-            self.XL.Application.Quit()
-            del self.XL
-
-    def add_files(self):
         logger.debug(f'Adding files from {self.input_files}')
         for x, eachfilepath in enumerate(self.source_file_list):
             (file_path, file_name) = os.path.split(eachfilepath)
@@ -131,28 +109,40 @@ class XLBuilder(object):
                 else:
                     eachmodule = SimpleNamespace(Name=file_name[:-4])
                 for i, line in enumerate(eachfile):
-                    linestrip = line.strip()
-                    line_length = len(line)
+                    linestrip = line.strip() #TODO: remove if not needed
+                    line_length = len(line) #TODO: remove if not needed
                     tag_match = self.tag_pattern.match(line)
-                    attribute_match = self.attribute_pattern.match(line)
-                    vbname_match = self.vbname_pattern.match(line)
                     sub_match = self.sub_pattern.match(line)
                     if tag_match:
                         tag_dict = ast.literal_eval(tag_match.group(1))
                         logger.debug(f'Matches {tag_dict}')
 
-                    if sub_match: # tag_dict is not None: # meaning the last line was a tag
-                        if tag_dict is not None: logger.debug(f'Sub {sub_match.group(1)}')
+                    # if sub_match: # tag_dict is not None: # meaning the last line was a tag
+                    elif tag_dict is not None: logger.debug(f'Sub {sub_match.group(0)}')
                         #TODO: do something with tags
 
                     tag_dict = None
+                    tag_match = None
 
                 if not self.dry: eachmodule.CodeModule.AddFromFile(eachfilepath)
                 logger.info(f'Adding {eachfilepath} as {eachmodule.Name}')
 
+        if callback is not None: callback()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not self.dry: self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
+        logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
+        if not self.dry: self.WB.Close()
+        logger.debug(f'Quitting Excel {self.dry_msg}')
+        if not self.dry:
+            self.XL.Application.Quit()
+            del self.XL
+
 class XLSMBuilder(XLBuilder):
     XlFileFormat = '52'
-
 
 class XLAMBuilder(XLBuilder):
     XlFileFormat = 55
@@ -160,11 +150,13 @@ class XLAMBuilder(XLBuilder):
     def __init__(self, *args, **kwargs):
         self.output_file = kwargs.get('output_file', self.output_file)
         self.tag_pattern = re.compile("^'@register\((.*)\)")
-        self.attribute_pattern = re.compile("^Attribute (.*)")
-        self.vbname_pattern = re.compile('^Attribute VB_Name = "(.*)"')
         self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
+
         super(XLAMBuilder, self).__init__(*args, **kwargs)
         self.build_ribbon()
+
+    def build(self, callback=None):
+        super(XLAMBuilder, self).build(self.build_ribbon)
 
     def build_ribbon(self, *args, **kwargs):
         logger.debug('Initiating ribbon build')
@@ -178,22 +170,22 @@ class RibbonButton(OrderedDict):
             return self['label'] + '__id'
         raise KeyError(key)
 
-# Parse arguments and config file
-# class ArgumentParseWideFormatter(argparse.ArgumentDefaultsHelpFormatter)
-argsformatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=100, width=100)
-parser = argparse.ArgumentParser(prog="xlbuilder.py", formatter_class=argsformatter) #argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('output_file', nargs='?', default='XLBuilder', help='name of output file')
-parser.add_argument('input_files', nargs='*', default='src', help='path to source files, accepts wildcards')
-parser.add_argument('--config', '-c', dest='config', default='config.yml',
-        help='optional config file')
-parser.add_argument('--type', default='xlam', choices=['xlam', 'xlsm'],
-        help='Type of output_file to be built')
-parser.add_argument('--dry', '-d', action='store_true', default=False,
-        help="dry run (does not launch Excel or create output_file)")
-parser.add_argument('--verbose', '-v', action='count', default=0)
-args = parser.parse_args()
+def run():
+    # Load arguments from command line
+    argsformatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=100, width=100)
+    parser = argparse.ArgumentParser(prog="xlbuilder.py", formatter_class=argsformatter) #argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('output_file', nargs='?', default='XLBuilder', help='name of output file')
+    parser.add_argument('input_files', nargs='*', default='src', help='path to source files, accepts wildcards')
+    parser.add_argument('--config', '-c', dest='config', default='config.yml',
+            help='optional config file')
+    parser.add_argument('--type', default='xlam', choices=['xlam', 'xlsm'],
+            help='Type of output_file to be built')
+    parser.add_argument('--dry', '-d', action='store_true', default=False,
+            help="dry run (does not launch Excel or create output_file)")
+    parser.add_argument('--verbose', '-v', action='count', default=0)
+    args = parser.parse_args()
 
-def run(args):
+    # Load arguments from config file if provided and readable
     config = {}
     try:
         with open(args.config, 'r') as ymlfile:
@@ -226,21 +218,34 @@ def run(args):
     else:
         logger.info(f'Loaded config from {args.config} file')
 
+    # Sanitize input_files
+    # ensure input_files is a list of directories or files
+    if not isinstance(context['input_files'], (list, tuple)):
+        context['input_files'] = [context['input_files']]
+
     # user may have provided just the directory name rather than a fullpath
-    context['input_files'] = os.path.normpath(rel(BASE_DIR, context['input_files']))
+    context['input_files'] = [
+            os.path.normpath(rel('.', x))
+            for x in context['input_files']
+    ]
 
     # user may or may not have provided a matching wildcard, in which case we add one
-    if os.path.isdir(context['input_files']): context['input_files'] = os.path.join(context['input_files'], '*.*')
+    context['input_files'] = [
+            os.path.join(x, '*.*') if os.path.isdir(x) else x
+            for x in context['input_files']
+    ]
 
-    context['input_files'] = os.path.normpath(context['input_files'])
+    # normalize every path for OCD reasons
+    context['input_files'] = [os.path.normpath(x) for x in context['input_files']]
 
+    # Instantiate and run the correct builder
     if context['type'] == 'xlam':
         with XLAMBuilder(**context) as builder:
-            pass
+            builder.build()
 
     if context['type'] == 'xlsm':
         with XLSMBuilder(**context) as builder:
-            pass
+            builder.build()
 
 if __name__ == '__main__':
-    run(args)
+    run()
