@@ -2,17 +2,16 @@ Attribute VB_Name = "ChartHelper"
 Option Explicit
 
 Sub LabelsFromRange()
-Attribute LabelsFromRange.VB_ProcData.VB_Invoke_Func = "E\n14"
     'Sets value of currently selected data labels from a specified range
     Dim LabelRange As Range, Cell As Range, i As Long
     Dim Labels As DataLabels, Label As DataLabel
-    
+
     On Error GoTo NoLabelSelected
     Set Labels = Selection 'Must select labels first
-    
+
     On Error GoTo ExitSub 'Trap errors for cancelled inputs
     Set LabelRange = Application.InputBox(prompt:="Select range", Type:=8)
-    
+
     On Error GoTo 0
     If Labels.Count = LabelRange.Count Then
         i = 0
@@ -22,9 +21,9 @@ Attribute LabelsFromRange.VB_ProcData.VB_Invoke_Func = "E\n14"
             Labels(i).Text = Application.WorksheetFunction.Text(Cell.Value, Cell.NumberFormat)
             If i >= Labels.Count Then Exit Sub
         Next
-        
+
         Exit Sub
-        
+
     ElseIf Labels.Count > LabelRange.Count Then
         i = 0
         For Each Label In Labels
@@ -33,15 +32,15 @@ Attribute LabelsFromRange.VB_ProcData.VB_Invoke_Func = "E\n14"
                 Label.Text = Application.WorksheetFunction.Text(LabelRange(i).Value, LabelRange(i).NumberFormat)
             End If
         Next
-        
+
         Exit Sub
-    
+
     End If
 
 Exit Sub
 NoLabelSelected:
     Call MsgBox("Please select data labels and try again.", vbCritical, "Error")
-    
+
 ExitSub:
 End Sub
 
@@ -49,28 +48,27 @@ Sub LabelsAboveStack()
     'Moves labels above stacked columns
     Dim LabelRange As Range, Cell As Range, i As Long
     Dim Labels As DataLabels, L As DataLabel
-    
+
     On Error GoTo NoLabelSelected
     Set Labels = Selection 'Must select labels first
-    
+
     On Error GoTo 0
     i = 0
     For Each L In Labels
         L.Position = xlLabelPositionCenter
         L.Top = L.Parent.Top - L.Height - 2
     Next
-    
+
     Exit Sub
-    
+
 NoLabelSelected:
     Call MsgBox("Please select data labels and try again.", vbCritical, "Error")
-    
+
 ExitSub:
-    
+
 End Sub
 
 Sub FindReplaceinChart()
-Attribute FindReplaceinChart.VB_ProcData.VB_Invoke_Func = "F\n14"
     Dim mySrs As Series
     Dim iPts As Long
     Dim iSrs As Long
@@ -89,12 +87,11 @@ Attribute FindReplaceinChart.VB_ProcData.VB_Invoke_Func = "F\n14"
             mySrs.Formula = sFormula
         Next
     End If
-    
+
 ExitSub:
 End Sub
 
 Sub LastPointLabel()
-Attribute LastPointLabel.VB_ProcData.VB_Invoke_Func = "L\n14"
     Dim mySrs As Series
     Dim iPts As Long
     Dim themeColor As MsoThemeColorIndex
@@ -120,16 +117,16 @@ Attribute LastPointLabel.VB_ProcData.VB_Invoke_Func = "L\n14"
 
                         On Error Resume Next 'point isn't plotted
                         mySrs.Points(iPts).ApplyDataLabels
-                        
+
                         'add series name
                         'mySrs.Points(iPts).ApplyDataLabels _
                         'ShowSeriesName:=True, _
                         'ShowCategoryName:=False, ShowValue:=False, _
                         'AutoText:=True, LegendKey:=False
-                        
+
                         ' bolds the font
                         Select Case iSrs
-                        
+
                         Case 1 To 5
                             themeColor = msoThemeColorAccent1
                         Case 6 To 13
@@ -140,13 +137,13 @@ Attribute LastPointLabel.VB_ProcData.VB_Invoke_Func = "L\n14"
                             themeColor = msoThemeColorAccent4
                         Case Else
                             themeColor = msoThemeColorAccent6
-                            
+
                         'mySrs.Point(iPts).Interior.ThemeColor =
                         'mySrs.Format.Fill.ForeColor.SchemeColor = ActiveWorkbook.Theme.ThemeColorScheme.Colors(msoThemeAccent1)
-                        
+
                         End Select
                         mySrs.Format.Fill.ForeColor.ObjectThemeColor = themeColor
-                        
+
                         If mySrs.ChartType = 15 Then
                             mySrs.DataLabels.Font.Color = mySrs.Fill.ForeColor
                                 mySrs.Points(iPts).ApplyDataLabels _
@@ -200,16 +197,16 @@ Sub FirstAndLastPointLabel()
 
                         On Error Resume Next 'point isn't plotted
                         mySrs.Points(iPts).ApplyDataLabels
-                        
+
                         'add series name
                         'mySrs.Points(iPts).ApplyDataLabels _
                         'ShowSeriesName:=True, _
                         'ShowCategoryName:=False, ShowValue:=False, _
                         'AutoText:=True, LegendKey:=False
-                        
+
                         ' bolds the font
                         Select Case iSrs
-                        
+
                         Case 1 To 5
                             themeColor = msoThemeColorAccent1
                         Case 6 To 13
@@ -220,13 +217,13 @@ Sub FirstAndLastPointLabel()
                             themeColor = msoThemeColorAccent4
                         Case Else
                             themeColor = msoThemeColorAccent6
-                            
+
                         'mySrs.Point(iPts).Interior.ThemeColor =
                         'mySrs.Format.Fill.ForeColor.SchemeColor = ActiveWorkbook.Theme.ThemeColorScheme.Colors(msoThemeAccent1)
-                        
+
                         End Select
                         mySrs.Format.Fill.ForeColor.ObjectThemeColor = themeColor
-                        
+
                         If mySrs.ChartType = 15 Then
                             mySrs.DataLabels.Font.Color = mySrs.Fill.ForeColor
                                 mySrs.Points(iPts).ApplyDataLabels _
@@ -254,7 +251,6 @@ Sub FirstAndLastPointLabel()
 End Sub
 
 Sub HideAxis()
-Attribute HideAxis.VB_ProcData.VB_Invoke_Func = "X\n14"
     Dim ActiveAxis As Axis
     If ActiveChart Is Nothing Then
         MsgBox "Select a chart axis and try again.", vbExclamation, "No Chart Selected"
@@ -266,9 +262,9 @@ Attribute HideAxis.VB_ProcData.VB_Invoke_Func = "X\n14"
             .TickLabelPosition = xlNone
         End With
     End If
-    
+
     Exit Sub
-    
+
 ErrHandler:
     If Err.Number = 13 Then
         MsgBox "You need to select the chart axis. Try again.", vbCritical, "No Axis Selected"
@@ -290,7 +286,7 @@ Sub DeleteObjectsFromChart()
             Obj.Delete
         Next
     End If
-    
+
 ErrHandler:
     If Err.Number = 13 Then
         MsgBox "You need to select the chart axis. Try again.", vbCritical, "No Axis Selected"
