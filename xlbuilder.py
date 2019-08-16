@@ -226,12 +226,6 @@ class XLAMBuilder(XLBuilder):
     def add_ribbon(self, ribbon):
         pass
 
-class RibbonButton(OrderedDict):
-    def __missing__(self, key):
-        if key == 'btnid':
-            return self['label'] + '__id'
-        raise KeyError(key)
-
 def run():
     # Load arguments from command line
     argsformatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=100, width=100)
