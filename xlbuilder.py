@@ -1,6 +1,6 @@
 ﻿# build-in libraries
 from pprint import pprint as pp, pformat as pf #TODO: removeme
-import argparse, ast, copy, datetime, glob, itertools, logging, os, re, sys
+import argparse, ast, copy, datetime, glob, itertools, logging, os, re, shutil, sys, tempfile
 from collections import OrderedDict
 from functools import wraps
 from io import BytesIO
@@ -208,12 +208,12 @@ class XLAMBuilder(XLBuilder):
                         tag_dict = ast.literal_eval(tag_match.group(1))
 
                     elif tag_dict is not None: # meaning the last line was a tag
-                        tag_dict['onAction'] = tag_dict.get('onAction', f'call{sub_match.group(1)}')
-                        tag_dict['id'] = tag_dict.get('id', f'id{sub_match.group(1)}')
-                        tag_dict['group_id'] = tag_dict.get('group_id', f'group_{tag_dict["group"]}')
+                        tag_dict['tab_id'] = tag_dict.get('', f'{sub_match.group(1)}Tab')
+                        tag_dict['button_id'] = tag_dict.get('', f'btn{sub_match.group(1)}')
+                        tag_dict['group_id'] = tag_dict.get('group_id', f'{tag_dict["group"]}Group')
                         tag_dict['size'] = tag_dict.get('size', 'normal')
 
-                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}']"
+                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}Tab']"
                         tab = self.ribbon.find(ribbon_tab_path)
 
                         # if no tab has yet been created (e.g. none provided in config file)
@@ -221,9 +221,9 @@ class XLAMBuilder(XLBuilder):
                         if tab is None:
                             tabs = self.ribbon.find("./ribbon/tabs")
                             tab = ET.SubElement(tabs, 'tab', attrib={
-                                'id': tag_dict['tab'],
-                                'keytip': '/',
+                                'id': tag_dict['tab_id'],
                                 'label': tag_dict['tab'],
+                                'keytip': '/',
                                 'insertAfterMso': 'TabView',
                             })
 
@@ -232,21 +232,19 @@ class XLAMBuilder(XLBuilder):
                         group = tab.find(f"group[@id='{tag_dict['group_id']}']")
                         if group is None:
                             group = ET.SubElement(tab, 'group', attrib={
-                                'id': f"{tag_dict['group_id']}",
-                                'label': f"{tag_dict['group']}"
+                                'id': tag_dict['group_id'],
+                                'label': tag_dict['group'],
                             })
 
-                        # create a dictionary for the ribbon button based on annotation
-                        # and remove extraneous attributes
-                        button_dict = tag_dict
-                        button_dict['imageMso'] = button_dict['image']
-                        for key in ('group', 'group_id', 'tab', 'image'):
-                            try:
-                                button_dict.pop(key)
-                            except KeyError:
-                                pass
+                        ET.SubElement(group, 'button', attrib={
+                            'id': tag_dict['button_id'],
+                            'label': tag_dict['label'],
+                            'imageMso': tag_dict['image'],
+                            'size': tag_dict['size'],
+                            'keytip': tag_dict['keytip'],
+                            'onAction': f"call{sub_match.group(1)}",
 
-                        ET.SubElement(group, 'button', attrib=button_dict)
+                        })
                         self.ribbon_callbacks.append(f'{sub_match.group(1)}')
 
                         tag_dict = None
@@ -255,6 +253,15 @@ class XLAMBuilder(XLBuilder):
                 logger.info(f'Parsed {eachfilepath}')
 
         logger.critical(f'{self.ribbon_callbacks_as_string}')
+        f = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
+        f.write(self.ribbon_callbacks_as_string)
+        file_name = f.name
+        f.close()
+        if not self.dry:
+            callbacks_module = self.WB.VBProject.VBComponents.Add(1)
+            callbacks_module.CodeModule.AddFromFile(file_name)
+        os.remove(file_name)
+
         self.ribbon.write(open(self.ribbon_file_path, 'w'), encoding='unicode')
         bs = BeautifulSoup(open(self.ribbon_file_path), 'html.parser')
         with open(self.ribbon_file_path, 'w') as f:
