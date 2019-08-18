@@ -4,4 +4,6 @@
 *.xml
 *.xlsm
 __pycache__
+bin/
 .git/
+todo.md
