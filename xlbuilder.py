@@ -172,27 +172,31 @@ class XLBuilder(object):
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def save(self):
         if not self.dry:
             try:
                 self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
                 logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
             except com_error as e:
                 logger.error(f'Error saving output file: {self.full_file_path}')
+        else:
+            logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
 
+    def close(self):
+        if not self.dry:
             try:
                 self.WB.Close()
                 logger.debug(f'Quitting Excel {self.dry_msg}')
             except com_error as e:
                 logger.critical(f'Error quitting Excel')
-
-            self.XL.Application.Quit()
-            del self.XL
-
         else:
-            logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
             logger.debug(f'Quitting Excel {self.dry_msg}')
 
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.save()
+        self.close()
+        self.XL.Application.Quit()
+        del self.XL
 
 class XLSMBuilder(XLBuilder):
     XlFileFormat = '52'
@@ -200,12 +204,14 @@ class XLSMBuilder(XLBuilder):
 class XLAMBuilder(XLBuilder):
     XlFileFormat = 55
     ribbon = {}
+    keep_xml = False
 
     @property
     def ribbon_file_path(self):
         return os.path.normpath(os.path.splitext(self.output)[0] + '.xml')
 
     def __init__(self, *args, **kwargs):
+        self.keep_xml = kwargs.get('keep_xml', self.keep_xml)
         self.ribbon = kwargs.get('ribbon', self.ribbon)
         self.tag_pattern = re.compile("^'@register\((.*)\)")
         self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
@@ -218,7 +224,27 @@ class XLAMBuilder(XLBuilder):
         with open(self.ribbon_file_path, 'w') as f:
             f.write(bs.prettify())
         logger.debug(f"Saved ribbon file to {self.ribbon_file_path}")
+
         if callback is not None: callback()
+
+    def save(self):
+        super(XLAMBuilder, self).save()
+
+        logger.debug(f"Opening output file {self.full_file_path}")
+        with UpdateableZipFile(self.full_file_path, 'a') as output:
+            with output.open('_rels/.rels', 'r') as rels:
+                logger.debug(f"Trying to load tree from .rels")
+                tree = ET.parse(rels)
+                root = tree.getroot()
+                relationships = [i for i in tree.iter()][0] #FIXME: use namespace
+                ET.SubElement(relationships, 'Relationship', attrib={
+                    'Id': 'xlbuilder',
+                    'Type': "http://schemas.microsoft.com/office/2007/relationships/ui/extensibility",
+                    'Target': 'customUI/customUI14.xml',
+                })
+                output.writestr('_rels/.rels', ET.tostring(root, encoding='utf8'))
+            output.write(self.ribbon_file_path, 'customUI/customUI14.xml')
+
 
     def build_ribbon(self, *args, **kwargs):
         logger.debug('Initiating ribbon build')
@@ -238,6 +264,7 @@ def run():
             help='Type of output to be built')
     parser.add_argument('--dry', '-d', action='store_true', default=False,
             help="dry run (does not launch Excel or create output)")
+    parser.add_argument('--keep_xml', action='store_true', default=False)
     parser.add_argument('--verbose', '-v', action='count', default=0)
     args = parser.parse_args()
 
@@ -313,6 +340,7 @@ def run():
 
     # Instantiate and run the correct builder
     if context['type'] == 'xlam':
+        context.update({'keep_xml': config.get('keep_xml', args.dry)})
         with XLAMBuilder(**context) as builder:
             builder.build()
 
@@ -322,3 +350,4 @@ def run():
 
 if __name__ == '__main__':
     run()
+    # input("Press the <ENTER> key to continue...")

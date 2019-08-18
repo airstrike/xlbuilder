@@ -107,8 +107,9 @@ class UpdateableZipFile(ZipFile):
                             replacement.close()
                         else:
                             data = zip_read.read(item.filename)
-                        zip_write.writestr(item, data.encode('utf-8'))
+                        zip_write.writestr(item, data)
             # Override the archive with the updated one
+            os.remove(self.filename) # remove it first for Windows
             shutil.move(temp_zip_path, self.filename)
         finally:
             shutil.rmtree(tempdir)
