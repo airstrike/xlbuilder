@@ -3,6 +3,7 @@ from pprint import pprint as pp, pformat as pf #TODO: removeme
 import argparse, ast, copy, datetime, glob, itertools, logging, os, re, sys
 from collections import OrderedDict
 from functools import wraps
+from io import BytesIO
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
@@ -59,6 +60,12 @@ FILE_FORMAT = {
     # Not really the same as the Ribbon XML but hey, it works
     46: '.xml', # xlXMLSpreadsheet
 }
+
+TEMPLATE_CALLBACK = """
+Sub call{fun}(control as IRibbonControl)
+    Call {fun}
+End Sub
+"""
 
 # from https://stackoverflow.com/questions/23218974/wrapping-class-method-in-try-except-using-decorator
 def handle_exceptions(fn):
@@ -117,55 +124,17 @@ class XLBuilder(object):
             self.XL.Application.DisplayAlerts = False
             self.WB = self.XL.Workbooks.Add()
 
-        logger.debug(f'Adding files from {self.input}')
+        logger.debug(f'Adding modules from {self.input}')
         for x, eachfilepath in enumerate(self.source_file_list):
             (file_path, file_name) = os.path.split(eachfilepath)
             with open(eachfilepath, 'rt') as eachfile:
-                tag_dict = None
                 if not self.dry:
                     eachmodule = self.WB.VBProject.VBComponents.Add(1)
                 else:
                     eachmodule = SimpleNamespace(Name=file_name[:-4])
-
-                for i, line in enumerate(eachfile):
-                    tag_match = self.tag_pattern.match(line)
-                    sub_match = self.sub_pattern.match(line)
-                    if tag_match:
-                        tag_dict = ast.literal_eval(tag_match.group(1))
-
-                    elif tag_dict is not None: # meaning the last line was a tag
-                        tag_dict['onAction'] = tag_dict.get('onAction', f'call{sub_match.group(1)}')
-                        tag_dict['id'] = tag_dict.get('id', f'id{sub_match.group(1)}')
-                        tag_dict['group_id'] = tag_dict.get('group_id', f'group_{tag_dict["group"]}')
-                        tag_dict['size'] = tag_dict.get('size', 'normal')
-
-                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}']"
-                        tab = self.ribbon.find(ribbon_tab_path)
-
-                        # if this is the first tag matching this group and tab, check that the
-                        # group exists and create it if it doesn't
-                        try:
-                            group = tab.find(f"group[@={tag_dict['group_id']}")
-                        except TypeError:
-                            group = ET.SubElement(tab, 'group', attrib={
-                                'id': f"{tag_dict['group_id']}",
-                                'label': f"{tag_dict['group']}"
-                            })
-
-                        # create a dictionary for the ribbon button based on annotation
-                        # and remove extraneous attributes
-                        button_dict = tag_dict
-                        for key in ('group', 'group_id', 'tab'): button_dict.pop(key)
-
-                        ET.SubElement(group, 'button', attrib=button_dict)
-
-                        tag_dict = None
-                        tag_match = None
-
                 if not self.dry:
                     eachmodule.CodeModule.AddFromFile(eachfilepath)
-
-                logger.info(f'Adding {eachfilepath} as {eachmodule.Name}')
+                logger.info(f'Added {eachfilepath} as {eachmodule.Name}')
 
         if callback is not None: callback()
 
@@ -188,15 +157,16 @@ class XLBuilder(object):
                 self.WB.Close()
                 logger.debug(f'Quitting Excel {self.dry_msg}')
             except com_error as e:
-                logger.critical(f'Error quitting Excel')
+                logger.error(f'Error quitting Excel')
         else:
             logger.debug(f'Quitting Excel {self.dry_msg}')
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.save()
         self.close()
-        self.XL.Application.Quit()
-        del self.XL
+        if not self.dry:
+            self.XL.Application.Quit()
+            del self.XL
 
 class XLSMBuilder(XLBuilder):
     XlFileFormat = '52'
@@ -205,10 +175,17 @@ class XLAMBuilder(XLBuilder):
     XlFileFormat = 55
     ribbon = {}
     keep_xml = False
+    ribbon_callbacks = []
 
     @property
     def ribbon_file_path(self):
         return os.path.normpath(os.path.splitext(self.output)[0] + '.xml')
+
+    @property
+    def ribbon_callbacks_as_string(self):
+        s = """Attribute VB_Name = "Callbacks"\r\nOption Explicit"""
+        s += "\r\n".join([TEMPLATE_CALLBACK.format(fun=i) for i in self.ribbon_callbacks])
+        return s
 
     def __init__(self, *args, **kwargs):
         self.keep_xml = kwargs.get('keep_xml', self.keep_xml)
@@ -218,7 +195,66 @@ class XLAMBuilder(XLBuilder):
         super(XLAMBuilder, self).__init__(*args, **kwargs)
 
     def build(self, callback=None):
-        super(XLAMBuilder, self).build(self.build_ribbon)
+        super(XLAMBuilder, self).build()
+        logger.debug(f'Parsing ribbon tags from {self.input}')
+        for x, eachfilepath in enumerate(self.source_file_list):
+            (file_path, file_name) = os.path.split(eachfilepath)
+            with open(eachfilepath, 'rt') as eachfile:
+                tag_dict = None
+                for i, line in enumerate(eachfile):
+                    tag_match = self.tag_pattern.match(line)
+                    sub_match = self.sub_pattern.match(line)
+                    if tag_match:
+                        tag_dict = ast.literal_eval(tag_match.group(1))
+
+                    elif tag_dict is not None: # meaning the last line was a tag
+                        tag_dict['onAction'] = tag_dict.get('onAction', f'call{sub_match.group(1)}')
+                        tag_dict['id'] = tag_dict.get('id', f'id{sub_match.group(1)}')
+                        tag_dict['group_id'] = tag_dict.get('group_id', f'group_{tag_dict["group"]}')
+                        tag_dict['size'] = tag_dict.get('size', 'normal')
+
+                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}']"
+                        tab = self.ribbon.find(ribbon_tab_path)
+
+                        # if no tab has yet been created (e.g. none provided in config file)
+                        # create a basic tab matching this id
+                        if tab is None:
+                            tabs = self.ribbon.find("./ribbon/tabs")
+                            tab = ET.SubElement(tabs, 'tab', attrib={
+                                'id': tag_dict['tab'],
+                                'keytip': '/',
+                                'label': tag_dict['tab'],
+                                'insertAfterMso': 'TabView',
+                            })
+
+                        # if this is the first tag matching this group and tab, check that the
+                        # group exists and create it if it doesn't
+                        group = tab.find(f"group[@id='{tag_dict['group_id']}']")
+                        if group is None:
+                            group = ET.SubElement(tab, 'group', attrib={
+                                'id': f"{tag_dict['group_id']}",
+                                'label': f"{tag_dict['group']}"
+                            })
+
+                        # create a dictionary for the ribbon button based on annotation
+                        # and remove extraneous attributes
+                        button_dict = tag_dict
+                        button_dict['imageMso'] = button_dict['image']
+                        for key in ('group', 'group_id', 'tab', 'image'):
+                            try:
+                                button_dict.pop(key)
+                            except KeyError:
+                                pass
+
+                        ET.SubElement(group, 'button', attrib=button_dict)
+                        self.ribbon_callbacks.append(f'{sub_match.group(1)}')
+
+                        tag_dict = None
+                        tag_match = None
+
+                logger.info(f'Parsed {eachfilepath}')
+
+        logger.critical(f'{self.ribbon_callbacks_as_string}')
         self.ribbon.write(open(self.ribbon_file_path, 'w'), encoding='unicode')
         bs = BeautifulSoup(open(self.ribbon_file_path), 'html.parser')
         with open(self.ribbon_file_path, 'w') as f:
@@ -230,24 +266,30 @@ class XLAMBuilder(XLBuilder):
     def save(self):
         super(XLAMBuilder, self).save()
 
-        logger.debug(f"Opening output file {self.full_file_path}")
-        with UpdateableZipFile(self.full_file_path, 'a') as output:
-            with output.open('_rels/.rels', 'r') as rels:
-                logger.debug(f"Trying to load tree from .rels")
-                tree = ET.parse(rels)
-                root = tree.getroot()
-                relationships = [i for i in tree.iter()][0] #FIXME: use namespace
-                ET.SubElement(relationships, 'Relationship', attrib={
-                    'Id': 'xlbuilder',
-                    'Type': "http://schemas.microsoft.com/office/2007/relationships/ui/extensibility",
-                    'Target': 'customUI/customUI14.xml',
-                })
-                output.writestr('_rels/.rels', ET.tostring(root, encoding='utf8'))
-            output.write(self.ribbon_file_path, 'customUI/customUI14.xml')
-
-
-    def build_ribbon(self, *args, **kwargs):
-        logger.debug('Initiating ribbon build')
+        logger.debug(f"Opening output file {self.full_file_path} {self.dry_msg}")
+        if not self.dry:
+            with UpdateableZipFile(self.full_file_path, 'a') as output:
+                with output.open('_rels/.rels', 'r') as rels:
+                    ET.register_namespace("", "http://schemas.openxmlformats.org/package/2006/relationships")
+                    tree = ET.parse(rels)
+                    root = tree.getroot()
+                    relationships = [i for i in tree.iter()][0] #FIXME: use namespace
+                    ET.SubElement(relationships, 'Relationship', attrib={
+                        'Id': 'xlbuilder',
+                        'Type': "http://schemas.microsoft.com/office/2007/relationships/ui/extensibility",
+                        'Target': '/customUI/customUI14.xml',
+                    })
+                    # sadly, ET.tostring() doesn't include an XML declaration
+                    # otherwise one could simply...
+                    # output.writestr('_rels/.rels', ET.tostring(root))
+                    # unless you append .encoding('utf8') to that function, in which case
+                    # it does include a declaration but 'utf8' isn't valid XML, but 'UTF-8' is
+                    f = BytesIO()
+                    tree.write(f, encoding='utf-8', xml_declaration=True)
+                    output.writestr('_rels/.rels', f.getvalue()) # ET.tostring(root))#, encoding='UTF-8'))
+                    logger.debug('Updated .rels file to include reference to ribbon')
+                output.write(self.ribbon_file_path, 'customUI/customUI14.xml')
+                logger.debug(f"Added ribbon as /customUI/customUI14.xml")
 
     def add_ribbon(self, ribbon):
         pass
@@ -292,6 +334,15 @@ def run():
                 parent = ET.SubElement(contextualtabs, 'tabSet', attrib={'idMso': 'TabSetChartTools'})
         else:
             parent = tabs
+            values['insertAfterMso'] = values.get('after', 'TabView')
+
+        # remove extraneous attributes
+        for v in ('after', 'type'):
+            try:
+                values.pop(v)
+            except KeyError:
+                pass
+
         element = ET.SubElement(parent, 'tab', attrib=values)
 
     context = {
@@ -325,13 +376,13 @@ def run():
 
     # user may have provided just the directory name rather than a fullpath
     context['input'] = [
-            os.path.normpath(os.path.join('.', x))
+            os.path.normpath(os.path.join(os.getcwd(), '.', x))
             for x in context['input']
     ]
 
     # user may or may not have provided a matching wildcard, in which case we add one
     context['input'] = [
-            os.path.join(os.getcwd(), x, '*.*') if os.path.isdir(x) else x
+            os.path.join(x, '*.*') if os.path.isdir(x) else x
             for x in context['input']
     ]
 
