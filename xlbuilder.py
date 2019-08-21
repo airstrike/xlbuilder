@@ -206,7 +206,7 @@ class XLAMBuilder(XLSMBuilder):
         if os.path.exists(self.ribbon_file_path):
             os.remove(self.ribbon_file_path)
         self.tag_pattern = re.compile("^'@ribbon\((.*)\)")
-        self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
+        self.sub_pattern = re.compile('^(?:Public |Private )?(?:Sub )(.*)(?:\((?:.*)?\))')
         super(XLAMBuilder, self).__init__(*args, **kwargs)
 
     def build(self, callback=None):
