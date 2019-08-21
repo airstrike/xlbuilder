@@ -67,6 +67,10 @@ Sub call{fun}(control as IRibbonControl)
 End Sub
 """
 
+def make_id(text):
+    pattern = re.compile('[\W_]+', re.UNICODE)
+    return pattern.sub('', text)
+
 # from https://stackoverflow.com/questions/23218974/wrapping-class-method-in-try-except-using-decorator
 def handle_exceptions(fn):
     @wraps(fn)
@@ -208,11 +212,12 @@ class XLAMBuilder(XLBuilder):
                         tag_dict = ast.literal_eval(tag_match.group(1))
 
                     elif tag_dict is not None: # meaning the last line was a tag
-                        tag_dict['button_id'] = tag_dict.get('button_id', f'btn{sub_match.group(1)}')
-                        tag_dict['group_id'] = tag_dict.get('group_id', f'{tag_dict["group"]}Group')
+                        tag_dict['button_id'] = make_id(tag_dict.get('button_id', f'btn{sub_match.group(1)}'))
+                        tag_dict['group_id'] = make_id(tag_dict.get('group_id', f'{tag_dict["group"]}Group'))
+                        tag_dict['tab'] = make_id(tag_dict['tab'])
                         tag_dict['size'] = tag_dict.get('size', 'normal')
 
-                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}']"
+                        ribbon_tab_path = f"./ribbon/tabs/tab[@id='{tag_dict['tab']}']"
                         tab = self.ribbon.find(ribbon_tab_path)
 
                         # if no tab has yet been created (e.g. none provided in config file)
@@ -220,7 +225,7 @@ class XLAMBuilder(XLBuilder):
                         if tab is None:
                             tabs = self.ribbon.find("./ribbon/tabs")
                             tab = ET.SubElement(tabs, 'tab', attrib={
-                                'id': tag_dict['tab'],
+                                'id': make_id(tag_dict['tab']),
                                 'label': tag_dict['tab'],
                                 'keytip': '/',
                                 'insertAfterMso': 'TabView',
@@ -231,12 +236,12 @@ class XLAMBuilder(XLBuilder):
                         group = tab.find(f"group[@id='{tag_dict['group_id']}']")
                         if group is None:
                             group = ET.SubElement(tab, 'group', attrib={
-                                'id': tag_dict['group_id'],
+                                'id': make_id(tag_dict['group_id']),
                                 'label': tag_dict['group'],
                             })
 
                         ET.SubElement(group, 'button', attrib={
-                            'id': tag_dict['button_id'],
+                            'id': make_id(tag_dict['button_id']),
                             'label': tag_dict['label'],
                             'imageMso': tag_dict['image'],
                             'size': tag_dict['size'],
@@ -265,8 +270,8 @@ class XLAMBuilder(XLBuilder):
             callbacks_module.CodeModule.AddFromFile(file_name)
         os.remove(file_name)
 
+        self.ribbon.write(self.ribbon_file_path, encoding='utf-8', xml_declaration=True)
         if self.keep_xml:
-            self.ribbon.write(self.ribbon_file_path, encoding='utf-8', xml_declaration=True)
             logger.debug(f"Saved ribbon file to {self.ribbon_file_path}")
 
         if callback is not None: callback()
@@ -298,6 +303,8 @@ class XLAMBuilder(XLBuilder):
                     logger.debug('Updated .rels file to include reference to ribbon')
                 output.write(self.ribbon_file_path, 'customUI/customUI14.xml')
                 logger.debug(f"Added ribbon as /customUI/customUI14.xml")
+            if not self.keep_xml:
+                os.unlink(self.ribbon_file_path)
 
     def add_ribbon(self, ribbon):
         pass
@@ -342,6 +349,7 @@ def run():
                 parent = ET.SubElement(contextualtabs, 'tabSet', attrib={'idMso': 'TabSetChartTools'})
         else:
             parent = tabs
+            values['label'] = values.get('label', values.get('id', ''))
             values['insertAfterMso'] = values.get('after', 'TabView')
 
         # remove extraneous attributes
@@ -398,7 +406,7 @@ def run():
 
     # Instantiate and run the correct builder
     if context['type'] == 'xlam':
-        context.update({'keep_xml': config.get('keep_xml', args.dry)})
+        context.update({'keep_xml': config.get('keep_xml', args.keep_xml)})
         with XLAMBuilder(**context) as builder:
             builder.build()
 
