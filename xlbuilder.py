@@ -251,15 +251,17 @@ class XLAMBuilder(XLSMBuilder):
                                 'label': tag_dict['group'],
                             })
 
-                        ET.SubElement(group, 'button', attrib={
+                        button_attribs = {
                             'id': make_id(tag_dict['button_id']),
                             'label': tag_dict['label'],
                             'imageMso': tag_dict['image'],
                             'size': tag_dict['size'],
                             'keytip': tag_dict['keytip'],
                             'onAction': f"call{sub_match.group(1)}",
-
-                        })
+                        }
+                        if tag_dict.get('screentip', None) is not None:
+                            button_attribs['screentip'] = tag_dict.get('screentip')
+                        ET.SubElement(group, 'button', attrib=button_attribs)
                         self.ribbon_callbacks.append(f'{sub_match.group(1)}')
 
                         tag_dict = None

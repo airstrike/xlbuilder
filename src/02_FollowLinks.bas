@@ -30,7 +30,7 @@ wellsrLaunchError:
 End Sub
 
 'Written by Andy Terra on 8/22/2018
-'@ribbon({'tab':'Terra', 'group':'Productivity', 'label':'Open link from comment', 'keytip':'B', 'image':'FileLinksToFiles'})
+'@ribbon({'tab':'Terra', 'group':'Productivity', 'label':'Go to Link', 'keytip':'B', 'image':'FileLinksToFiles', 'screentip':"Opens any link matching http(s):// in the active cell's comment text"})
 Sub OpenLinkFromComment()
     Dim Cell As Range
     Dim cell_comment As String
