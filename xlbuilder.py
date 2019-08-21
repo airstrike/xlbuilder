@@ -146,7 +146,9 @@ class XLSMBuilder(object):
                     ref_match  = self.ref_pattern.match(line)
 
                     if ref_match:
-                        self.vb_references.append(ast.literal_eval(ref_match.group(1)))
+                        reference = ast.literal_eval(ref_match.group(1))
+                        if reference not in self.vb_references:
+                            self.vb_references.append(reference)
 
         for reference in self.vb_references:
             self.WB.VBProject.References.AddFromGuid(*reference)
