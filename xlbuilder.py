@@ -196,7 +196,7 @@ class XLAMBuilder(XLBuilder):
 
     def build(self, callback=None):
         super(XLAMBuilder, self).build()
-        logger.debug(f'Parsing ribbon tags from {self.input}')
+        logger.info(f'Looking for ribbon tags in {"(" + ", ".join(self.input) + ")" if len(self.input) > 1 else self.input[0]}')
         for x, eachfilepath in enumerate(self.source_file_list):
             (file_path, file_name) = os.path.split(eachfilepath)
             with open(eachfilepath, 'rt') as eachfile:
@@ -208,12 +208,11 @@ class XLAMBuilder(XLBuilder):
                         tag_dict = ast.literal_eval(tag_match.group(1))
 
                     elif tag_dict is not None: # meaning the last line was a tag
-                        tag_dict['tab_id'] = tag_dict.get('', f'{sub_match.group(1)}Tab')
-                        tag_dict['button_id'] = tag_dict.get('', f'btn{sub_match.group(1)}')
+                        tag_dict['button_id'] = tag_dict.get('button_id', f'btn{sub_match.group(1)}')
                         tag_dict['group_id'] = tag_dict.get('group_id', f'{tag_dict["group"]}Group')
                         tag_dict['size'] = tag_dict.get('size', 'normal')
 
-                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}Tab']"
+                        ribbon_tab_path = f"./ribbon/tabs/tab/[@id='{tag_dict['tab']}']"
                         tab = self.ribbon.find(ribbon_tab_path)
 
                         # if no tab has yet been created (e.g. none provided in config file)
@@ -221,7 +220,7 @@ class XLAMBuilder(XLBuilder):
                         if tab is None:
                             tabs = self.ribbon.find("./ribbon/tabs")
                             tab = ET.SubElement(tabs, 'tab', attrib={
-                                'id': tag_dict['tab_id'],
+                                'id': tag_dict['tab'],
                                 'label': tag_dict['tab'],
                                 'keytip': '/',
                                 'insertAfterMso': 'TabView',
@@ -252,7 +251,11 @@ class XLAMBuilder(XLBuilder):
 
                 logger.info(f'Parsed {eachfilepath}')
 
-        logger.critical(f'{self.ribbon_callbacks_as_string}')
+        contextualtabs = self.ribbon.find('./ribbon/contextualtabs')
+        ribbon = self.ribbon.find('./ribbon')
+        if contextualtabs.text is None:
+            ribbon.remove(contextualtabs)
+
         f = tempfile.NamedTemporaryFile(mode='w+t', delete=False)
         f.write(self.ribbon_callbacks_as_string)
         file_name = f.name
@@ -262,11 +265,9 @@ class XLAMBuilder(XLBuilder):
             callbacks_module.CodeModule.AddFromFile(file_name)
         os.remove(file_name)
 
-        self.ribbon.write(open(self.ribbon_file_path, 'w'), encoding='unicode')
-        bs = BeautifulSoup(open(self.ribbon_file_path), 'html.parser')
-        with open(self.ribbon_file_path, 'w') as f:
-            f.write(bs.prettify())
-        logger.debug(f"Saved ribbon file to {self.ribbon_file_path}")
+        if self.keep_xml:
+            self.ribbon.write(self.ribbon_file_path, encoding='utf-8', xml_declaration=True)
+            logger.debug(f"Saved ribbon file to {self.ribbon_file_path}")
 
         if callback is not None: callback()
 
@@ -366,7 +367,6 @@ def run():
     levels = [logging.WARNING, logging.INFO, logging.DEBUG]
     level = levels[min(len(levels)-1, context['verbose'])]
     logger.setLevel(level)
-    logger.debug('Running as main program')
 
     if context['dry']:
         logger.warning('!!! Dry run (does not launch Excel or create any files) !!!')
@@ -408,4 +408,3 @@ def run():
 
 if __name__ == '__main__':
     run()
-    # input("Press the <ENTER> key to continue...")
