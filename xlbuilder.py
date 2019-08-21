@@ -398,7 +398,7 @@ def run():
 
     # Instantiate and run the correct builder
     if context['type'] == 'xlam':
-        context.update({'keep_xml': config.get('keep_xml', args.dry)})
+        context.update({'keep_xml': config.get('keep_xml', args.keep_xml)})
         with XLAMBuilder(**context) as builder:
             builder.build()
 
