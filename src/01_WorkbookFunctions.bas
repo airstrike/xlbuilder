@@ -1,4 +1,4 @@
-Attribute VB_Name = "WorkbookHelper"
+Attribute VB_Name = "WorkbookFunctions"
 Option Explicit
 
 Type StoreRangeInfo
