@@ -89,14 +89,15 @@ def exception_handler(e):
     else:
         logger.error(e)
 
-class XLBuilder(object):
+class XLSMBuilder(object):
     XL = None
     WB = None
-    XlFileFormat = None # implement in subclass
+    XlFileFormat = '52'
     input = './src/*.*'
-    output = 'XLBuilderFile'
+    output = 'XLSMBuilderFile'
     dry = False
     dry_msg = ''
+    vb_references = []
 
     @property
     def extension(self):
@@ -111,11 +112,12 @@ class XLBuilder(object):
         return itertools.chain(*[glob.glob(x) for x in self.input])
 
     def __init__(self, *args, **kwargs):
-        super(XLBuilder, self).__init__()
+        super(XLSMBuilder, self).__init__()
         self.tags = kwargs.get('tags', {})
         self.input = kwargs.get('input', self.input)
         self.output = kwargs.get('output', self.output)
         self.dry = kwargs.get('dry', self.dry)
+        self.ref_pattern = re.compile("^'@register\((.*)\)")
         if self.dry: self.dry_msg = '(not really due to dry run)'
 
     @handle_exceptions
@@ -139,6 +141,15 @@ class XLBuilder(object):
                 if not self.dry:
                     eachmodule.CodeModule.AddFromFile(eachfilepath)
                 logger.info(f'Added {eachfilepath} as {eachmodule.Name}')
+
+                for i, line in enumerate(eachfile):
+                    ref_match  = self.ref_pattern.match(line)
+
+                    if ref_match:
+                        self.vb_references.append(ast.literal_eval(ref_match.group(1)))
+
+        for reference in self.vb_references:
+            self.WB.VBProject.References.AddFromGuid(*reference)
 
         if callback is not None: callback()
 
@@ -172,10 +183,8 @@ class XLBuilder(object):
             self.XL.Application.Quit()
             del self.XL
 
-class XLSMBuilder(XLBuilder):
-    XlFileFormat = '52'
 
-class XLAMBuilder(XLBuilder):
+class XLAMBuilder(XLSMBuilder):
     XlFileFormat = 55
     ribbon = {}
     keep_xml = False
@@ -196,7 +205,7 @@ class XLAMBuilder(XLBuilder):
         self.ribbon = kwargs.get('ribbon', self.ribbon)
         if os.path.exists(self.ribbon_file_path):
             os.remove(self.ribbon_file_path)
-        self.tag_pattern = re.compile("^'@register\((.*)\)")
+        self.tag_pattern = re.compile("^'@ribbon\((.*)\)")
         self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
         super(XLAMBuilder, self).__init__(*args, **kwargs)
 
@@ -313,7 +322,7 @@ def run():
     # Load arguments from command line
     argsformatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=100, width=100)
     parser = argparse.ArgumentParser(prog="xlbuilder.py", formatter_class=argsformatter) #argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('output', nargs='?', default='XLBuilder', help='name of output file')
+    parser.add_argument('output', nargs='?', default='XLSMBuilder', help='name of output file')
     parser.add_argument('input', nargs='*', default='src', help='location of source file(s), accepts wildcards')
     parser.add_argument('--config', '-c', dest='config', default='config.yml',
             help='optional config file')
