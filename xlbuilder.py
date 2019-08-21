@@ -194,6 +194,8 @@ class XLAMBuilder(XLBuilder):
     def __init__(self, *args, **kwargs):
         self.keep_xml = kwargs.get('keep_xml', self.keep_xml)
         self.ribbon = kwargs.get('ribbon', self.ribbon)
+        if os.path.exists(self.ribbon_file_path):
+            os.remove(self.ribbon_file_path)
         self.tag_pattern = re.compile("^'@register\((.*)\)")
         self.sub_pattern = re.compile('^(?:Sub )(.*)(?:\((?:.*)?\))')
         super(XLAMBuilder, self).__init__(*args, **kwargs)
@@ -299,10 +301,8 @@ class XLAMBuilder(XLBuilder):
                     # it does include a declaration but 'utf8' isn't valid XML, but 'UTF-8' is
                     f = BytesIO()
                     tree.write(f, encoding='utf-8', xml_declaration=True)
-                    output.writestr('_rels/.rels', f.getvalue()) # ET.tostring(root))#, encoding='UTF-8'))
-                    logger.debug('Updated .rels file to include reference to ribbon')
+                    output.writestr('_rels/.rels', f.getvalue())
                 output.write(self.ribbon_file_path, 'customUI/customUI14.xml')
-                logger.debug(f"Added ribbon as /customUI/customUI14.xml")
             if not self.keep_xml:
                 os.unlink(self.ribbon_file_path)
 
