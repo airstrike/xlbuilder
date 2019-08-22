@@ -1,6 +1,6 @@
 Attribute VB_Name = "Formatting"
 ' Borrowed largely from http://www.jkp-ads.com/Articles/styles06.asp
-'@ribbon({'tab': 'Terra', 'group': 'Cleanup', 'label':'Drop Unused Style', 'keytip': '!U', 'image': 'ClearFormatting'})
+'@ribbon({'tab': 'Terra', 'group': 'Cleanup', 'label':'Remove Unused Styles', 'keytip': '!U', 'image': 'ClearFormatting'})
 Public Sub DropUnusedStyles()
     Dim styleObj As Style
     Dim rngCell As Range
@@ -17,7 +17,7 @@ Public Sub DropUnusedStyles()
     Set wb = ActiveWorkbook ' the active workbook in excel
 
     BeforeCount = wb.Styles.Count
-    Application.StatusBar = "[Dropping WB styles] Before: " & BeforeCount
+    Application.StatusBar = "[Removing workbook styles] Before: " & BeforeCount
 
     ' dict := list of styles
     For Each styleObj In wb.Styles
@@ -53,7 +53,7 @@ Public Sub DropUnusedStyles()
                 Err.Clear
             Else
                 DeletedCount = DeletedCount + 1
-                Application.StatusBar = "[Dropping WB styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount
+                Application.StatusBar = "[Removing workbook styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount
                 Application.DoEvents
             End If
             Call dict.Remove(aKey)
@@ -61,12 +61,12 @@ Public Sub DropUnusedStyles()
 
     Next aKey
 
-    Application.StatusBar = "[Dropping WB styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount & " / Remaining: " & wb.Styles.Count & ". FINISHED!"
+    Application.StatusBar = "[Removing workbook styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount & " / Remaining: " & wb.Styles.Count & ". FINISHED!"
     Call DelayedResetStatusBar("00:00:03")
 
 End Sub
 
-'@ribbon({'tab': 'Terra', 'group': 'Cleanup', 'label':'Drop Every Style', 'keytip': '!E', 'image': 'WordArtClear'})
+'@ribbon({'tab': 'Terra', 'group': 'Cleanup', 'label':'Remove Every Style', 'keytip': '!E', 'image': 'WordArtClear'})
 Public Sub DropEveryStyle()
     With ActiveWorkbook
         Dim styleObj As Style
@@ -75,7 +75,7 @@ Public Sub DropEveryStyle()
 
         Calc = Application.Calculation
         BeforeCount = .Styles.Count
-        Application.StatusBar = "[Dropping WB styles] Before: " & BeforeCount
+        Application.StatusBar = "[Removing workbook styles] Before: " & BeforeCount
 
         Calc = Application.Calculation
 
@@ -89,7 +89,7 @@ Public Sub DropEveryStyle()
             Case Else
                 Call styleObj.Delete
                 DeletedCount = DeletedCount + 1
-                Application.StatusBar = "[Dropping WB styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount
+                Application.StatusBar = "[Removing workbook styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount
                 If DeletedCount Mod 1000 = 0 Then DoEvents
                 GoTo NoSkip
             End Select
@@ -99,10 +99,43 @@ Resume Next
 NoSkip:
         Next styleObj
         On Error GoTo 0
-        Application.StatusBar = "[Dropping WB styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount & " / Remaining: " & .Styles.Count & ". FINISHED!"
+        Application.StatusBar = "[Removing workbook styles] Before: " & BeforeCount & " / Deleted: " & DeletedCount & " / Remaining: " & .Styles.Count & ". FINISHED!"
 
     End With
     Application.Calculation = Calc
     Call DelayedResetStatusBar
+
+End Sub
+
+'@ribbon({'tab': 'Terra', 'group': 'Cleanup', 'label':'Remove Hidden Names', 'keytip': '!N', 'image': 'TableIndexes'})
+Sub RemoveHiddenNames()
+    Dim tempname As Name
+    Application.ScreenUpdating = False
+    Dim Calc As Long
+    Calc = xlCalculationManual
+    If Application.Calculation <> xlCalculationManual Then Calc = xlCalculationSemiautomatic
+    Application.Calculation = xlCalculationManual
+    Dim statuspre As String
+    statuspre = "Deleting hidden names: ["
+    Dim namecount As Long, deleted As Long
+    namecount = ActiveWorkbook.Names.Count
+
+    On Error Resume Next
+    For Each tempname In ActiveWorkbook.Names
+        If tempname.Visible = False Then
+            tempname.Visible = True 'To help delete manually if the below fails
+            tempname.delete
+            deleted = deleted + 1
+            If deleted Mod 100 = 0 Then Application.StatusBar = statuspre & deleted & "/" & namecount & "]"
+        End If
+    Next
+    Application.StatusBar = statuspre & deleted & "/" & namecount & "]"
+    On Error GoTo 0
+
+    Application.ScreenUpdating = True
+    Application.Calculation = Calc
+    Call DelayedResetStatusBar
+
+    Exit Sub
 
 End Sub

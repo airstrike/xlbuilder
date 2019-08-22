@@ -1,6 +1,7 @@
 Attribute VB_Name = "WorkbookFunctions"
 Option Explicit
-
+'@register(('{3F4DACA7-160D-11D2-A8E9-00104B365C9F}', 5, 5)) # regex
+    
 Type StoreRangeInfo
     'TODO: Store workbook name, file name.
     Columns() As Variant
@@ -185,7 +186,7 @@ Sub RemoveUnusedNumberFormats()
   End If
 
   On Error GoTo Exit_Sub
-  Application.Cursor = xlWait
+  Application.CURSOR = xlWait
   ReDim strFormats(1000)
   ReDim fFormatsUsed(1000)
   Set aCell = Range("A1")
@@ -230,7 +231,7 @@ Exit_Sub:
   Set Sht = Nothing
   Erase strFormats
   Erase fFormatsUsed
-  Application.Cursor = xlDefault
+  Application.CURSOR = xlDefault
 End Sub
 
 '@ribbon({'tab':'Terra', 'group':'Sheets', 'label':'Toggle Page Breaks', 'keytip':'SB', 'image':'PrintTitles'})
@@ -257,16 +258,37 @@ Sub DeleteHiddenSheets()
     Next
 End Sub
 
-'@ribbon({'tab':'Terra', 'group':'Sheets', 'label':'Reset Zoom Levels', 'keytip':'SZ', 'image':'ZoomToSelection'})
-Sub ResetZoom()
+'@ribbon({'tab':'Terra', 'group':'Sheets', 'label':'Reset Zoom (Current)', 'keytip':'SZ', 'image':'FilePrintPreview', 'screentip':"Reset this sheet's zoom level to 85% and toggle view mode"})
+Sub ResetPageZoom()
     On Error Resume Next
+    Dim SU As Long
+    SU = Application.ScreenUpdating
     Application.ScreenUpdating = False
     ActiveWindow.Zoom = 85
     ActiveWindow.View = IIf(ActiveWindow.View = xlPageBreakPreview, xlNormalView, xlPageBreakPreview)
     ActiveWindow.Zoom = 85
     ActiveSheet.DisplayPageBreaks = ActiveSheet.DisplayPageBreaks 'Refreshes view in some weird instances
-    Application.ScreenUpdating = True
-    Application.OnKey "{F8}", "ResetZoom"
+    Application.ScreenUpdating = SU
+End Sub
+
+'@ribbon({'tab':'Terra', 'group':'Sheets', 'label':'Reset Zoom (All)', 'keytip':'SA', 'image':'First10RecordsPreview', 'screentip':"Reset every sheet's zoomlevel to 85%"})
+Sub ResetEveryZoom()
+    On Error Resume Next
+    Dim SU As Long
+    Dim Sht As Worksheet, Current As Worksheet
+    SU = Application.ScreenUpdating
+    Set Current = ActiveSheet
+    Application.ScreenUpdating = False
+
+    For Each Sht In ActiveWorkbook.Worksheets
+        Sht.Activate
+        ActiveWindow.Zoom = 85
+        ActiveWindow.View = IIf(ActiveWindow.View = xlPageBreakPreview, xlNormalView, xlPageBreakPreview)
+        ActiveWindow.Zoom = 85
+        ActiveWindow.View = IIf(ActiveWindow.View = xlPageBreakPreview, xlNormalView, xlPageBreakPreview)
+    Next
+    Current.Activate
+    Application.ScreenUpdating = SU
 End Sub
 
 '@ribbon({'tab':'Terra', 'group':'Edit Cells', 'label':'Fix Comments', 'keytip':'EM', 'image':'ReviewNewComment'})
@@ -304,15 +326,15 @@ End Sub
 
 Private Sub FlipSignUndo()
     Dim i As Long, FlippedFormula As String, CurrentFormula As String
-    For i = 1 To UBound(FlipSignRangeInfo.Cells)
+    For i = 1 To UBound(FlipSignRangeInfo.Formulas)
         CurrentFormula = FlipSignRangeInfo.OriginalRange.Cells(i).Formula
         FlippedFormula = FlipSignRangeInfo.Formulas(i)
         FlipSignRangeInfo.OriginalRange.Cells(i) = FlippedFormula
         FlipSignRangeInfo.Formulas(i) = CurrentFormula
     Next
 
-    Application.OnUndo "Undo the undoing of the FlipSign macro", "FlipSign"
-    Application.OnRepeat "Undo the undoing of the FlipSign macro", "FlipSign"
+    Application.OnUndo "Undo sign flipping", "FlipSign"
+    Application.OnRepeat "Redo sign flipping", "FlipSign"
 End Sub
 
 '@ribbon({'tab':'Terra', 'group':'Edit Cells', 'label':'Flip Sign', 'keytip':'E-', 'image':'PivotPlusMinusButtonsShowHide'})
@@ -334,21 +356,32 @@ Sub FlipSign()
     Next
 
 EndSub:
-    Application.OnUndo "Undo the FlipSign macro", "FlipSignUndo"
+    Application.OnUndo "Undo sign flipping", "FlipSignUndo"
 End Sub
 
 Private Function FlipCellFormula(ByVal Formula As String)
     If Left(Formula, 1) = "-" Then
         FlipCellFormula = Mid(Formula, 2, Len(Formula) - 1)
-    ElseIf Left(Formula, 1) <> "=" Then
+    ElseIf Left(Formula, 1) <> "=" And Formula <> "" Then
         FlipCellFormula = "-" & Formula
     ElseIf Left(Formula, 2) = "=-" Then
         FlipCellFormula = "=" & Mid(Formula, 3, Len(Formula) - 2)
     ElseIf (InStr(Formula, "+") + InStr(Formula, "(")) > 0 Then
         FlipCellFormula = "=-(" & Mid(Formula, 2, Len(Formula) - 1) & ")"
+    ElseIf Formula = "" Then
+        FlipCellFormula = ""
     Else
         FlipCellFormula = "=-" & Mid(Formula, 2, Len(Formula) - 1)
     End If
+    
+    'Dim parentheses As RegExp
+    'Set parentheses = CreateObject("VBScript.RegExp")
+    'parentheses.Pattern = "=\((?>\((?<c>)|[^()]+|\)(?<-c>))*(?(c)(?!))\)"
+    'Dim matches As MatchCollection, i As Long
+    'Set matches = parentheses.Execute(FlipCellFormula)
+    'If matches.Count > 0 Then
+    '    Debug.Print Formula, FlipCellFormula
+    'End If
 End Function
 
 '@ribbon({'tab':'Terra', 'group':'Edit Cells', 'label':'Toggle Underline', 'keytip':'EU', 'image':'UnderlineWords'})
@@ -373,3 +406,4 @@ Sub UnderlineToggle()
     End Select
     End With
 End Sub
+
