@@ -1,4 +1,4 @@
-## Installation
+## Installation Instructions
 
 1. Close Excel
 2. Copy Terra.xlam to %APPDATA%\Microsoft\Addins
