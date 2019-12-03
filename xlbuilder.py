@@ -1,4 +1,4 @@
-﻿# build-in libraries
+﻿# built-in libraries
 from pprint import pprint as pp, pformat as pf #TODO: removeme
 import argparse, ast, copy, datetime, glob, itertools, logging, os, re, shutil, sys, tempfile
 from collections import OrderedDict

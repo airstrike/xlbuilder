@@ -1,6 +1,7 @@
 Attribute VB_Name = "ChartHelper"
 Option Explicit
 
+'@ribbon({'tab': 'TerraChart', 'group': 'Productivity', 'label': 'Labels from Range', 'keytip': 'L', 'image': 'PivotShowDetails'})
 Sub LabelsFromRange()
     'Sets value of currently selected data labels from a specified range
     Dim LabelRange As Range, Cell As Range, i As Long
@@ -250,6 +251,7 @@ Sub FirstAndLastPointLabel()
     End If
 End Sub
 
+'@ribbon({'tab': 'TerraChart', 'group': 'Chart Tools', 'label': 'Hide Axis', 'keytip': 'X', 'image': 'Delete'})
 Sub HideAxis()
     Dim ActiveAxis As Axis
     If ActiveChart Is Nothing Then
