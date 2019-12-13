@@ -1,4 +1,5 @@
-﻿# built-in libraries
+﻿#!/usr/bin/python3
+# built-in libraries
 from pprint import pprint as pp, pformat as pf #TODO: removeme
 import argparse, ast, copy, datetime, glob, itertools, logging, os, re, shutil, sys, tempfile
 from collections import OrderedDict
@@ -68,7 +69,7 @@ End Sub
 """
 
 def make_id(text):
-    pattern = re.compile('[\W_]+', re.UNICODE)
+    pattern = re.compile(r'[\W_]+', re.UNICODE)
     return pattern.sub('', text)
 
 # from https://stackoverflow.com/questions/23218974/wrapping-class-method-in-try-except-using-decorator
@@ -84,7 +85,6 @@ def handle_exceptions(fn):
 def exception_handler(e):
     if e.excepinfo[5] == '-2147352567':
         logger.error(f'Path not found.')
-        logger.error(f'{self.config}')
 
     else:
         logger.error(e)
@@ -117,7 +117,7 @@ class XLSMBuilder(object):
         self.input = kwargs.get('input', self.input)
         self.output = kwargs.get('output', self.output)
         self.dry = kwargs.get('dry', self.dry)
-        self.ref_pattern = re.compile("^'@register\((.*)\)")
+        self.ref_pattern = re.compile(r"^'@register\((.*)\)")
         if self.dry: self.dry_msg = '(not really due to dry run)'
 
     @handle_exceptions
@@ -163,7 +163,7 @@ class XLSMBuilder(object):
             try:
                 self.WB.SaveAs(self.full_file_path, self.XlFileFormat)
                 logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
-            except com_error as e:
+            except com_error:
                 logger.error(f'Error saving output file: {self.full_file_path}')
         else:
             logger.info(f'Saved output file: {self.full_file_path} {self.dry_msg}')
@@ -173,7 +173,7 @@ class XLSMBuilder(object):
             try:
                 self.WB.Close()
                 logger.debug(f'Quitting Excel {self.dry_msg}')
-            except com_error as e:
+            except com_error:
                 logger.error(f'Error quitting Excel')
         else:
             logger.debug(f'Quitting Excel {self.dry_msg}')
@@ -207,8 +207,8 @@ class XLAMBuilder(XLSMBuilder):
         self.ribbon = kwargs.get('ribbon', self.ribbon)
         if os.path.exists(self.ribbon_file_path):
             os.remove(self.ribbon_file_path)
-        self.tag_pattern = re.compile("^'@ribbon\((.*)\)")
-        self.sub_pattern = re.compile('^(?:Public |Private )?(?:Sub )(.*)(?:\((?:.*)?\))')
+        self.tag_pattern = re.compile(r"^'@ribbon\((.*)\)")
+        self.sub_pattern = re.compile(r'^(?:Public |Private )?(?:Sub )(.*)(?:\((?:.*)?\))')
         super(XLAMBuilder, self).__init__(*args, **kwargs)
 
     def build(self, callback=None):
@@ -217,14 +217,14 @@ class XLAMBuilder(XLSMBuilder):
         for x, eachfilepath in enumerate(self.source_file_list):
             (file_path, file_name) = os.path.split(eachfilepath)
             with open(eachfilepath, 'rt') as eachfile:
-                tag_dict = None
+                tag_dict = {}
                 for i, line in enumerate(eachfile):
                     tag_match = self.tag_pattern.match(line)
                     sub_match = self.sub_pattern.match(line)
                     if tag_match:
                         tag_dict = ast.literal_eval(tag_match.group(1))
 
-                    elif tag_dict is not None: # meaning the last line was a tag
+                    elif tag_dict is not {}: # meaning the last line was a tag
                         tag_dict['button_id'] = make_id(tag_dict.get('button_id', f'btn{sub_match.group(1)}'))
                         tag_dict['group_id'] = make_id(tag_dict.get('group_id', f'{tag_dict["group"]}Group'))
                         tag_dict['tab'] = make_id(tag_dict['tab'])
@@ -300,7 +300,6 @@ class XLAMBuilder(XLSMBuilder):
                 with output.open('_rels/.rels', 'r') as rels:
                     ET.register_namespace("", "http://schemas.openxmlformats.org/package/2006/relationships")
                     tree = ET.parse(rels)
-                    root = tree.getroot()
                     relationships = [i for i in tree.iter()][0] #FIXME: use namespace
                     ET.SubElement(relationships, 'Relationship', attrib={
                         'Id': 'xlbuilder',
@@ -371,8 +370,6 @@ def run():
                 values.pop(v)
             except KeyError:
                 pass
-
-        element = ET.SubElement(parent, 'tab', attrib=values)
 
     context = {
         'config': config,
