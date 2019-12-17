@@ -1,56 +1,25 @@
-﻿#!/usr/bin/python3
-# built-in libraries
-from pprint import pprint as pp, pformat as pf #TODO: removeme
-import argparse, ast, copy, datetime, glob, itertools, logging, os, re, shutil, sys, tempfile
+﻿# built-in libraries
+import argparse, ast, datetime, glob, itertools, logging, os, re, shutil, sys, tempfile
 from collections import OrderedDict
-from functools import wraps
 from io import BytesIO
 from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 # third-party libraries
-from utils import UpdateableZipFile
+from utils import handle_exceptions, UpdateableZipFile
 from bs4 import BeautifulSoup
-import colorful
 import win32com.client
-from pywintypes import com_error
 import yaml
 
-# inspired by
-# http://uran198.github.io/en/python/2016/07/12/colorful-python-logging.html
-with colorful.with_16_ansi_colors() as c:
-    LOG_COLORS = {
-        logging.ERROR: c.red,
-        logging.WARNING: c.yellow,
-        logging.DEBUG: c.cyan,
-        logging.CRITICAL: c.magenta,
-        logging.INFO: c.green,
-    }
+from logger import logger
+from pywintypes import com_error
 
-class ColorFormatter(logging.Formatter):
-    last_levelno = None
-
-    def format(self, record, *args, **kwargs):
-        with colorful.with_8_ansi_colors() as c:
-            # if the corresponding logger has children, they may receive modified
-            # record, so we want to keep it intact
-            new_record = copy.copy(record)
-            if new_record.levelno in LOG_COLORS.keys():
-                levelcolor = LOG_COLORS[new_record.levelno]
-                # hide level name for repeated log messages with the same level
-                if new_record.levelno != self.last_levelno:
-                    levelname = new_record.levelname
-                    new_record.levelname = f'{levelcolor}{levelname:<9}{c.reset}'
-                else:
-                    new_record.levelname = f'{c.reset}{levelcolor}         {c.reset}'
-            self.last_levelno = new_record.levelno
-            return super(ColorFormatter, self).format(new_record, *args, **kwargs)
-
-formatter = ColorFormatter("%(levelname)s %(message)s")
-handler = logging.StreamHandler()
-handler.setFormatter(formatter)
-logger = logging.getLogger(__name__)
-logger.addHandler(handler)
+# TODO: Check if customUI14base.py requires us to sanitize inputs for ids. If so, either
+# monkey-patch the original classes or make them subclass from a BaseElement class that
+# sanitizes inputs
+def sanitize_id(text):
+    pattern = re.compile('[\W_]+', re.UNICODE)
+    return pattern.sub('', text)
 
 FILE_FORMAT = {
     # https://docs.microsoft.com/en-us/office/vba/api/excel.xlfileformat
@@ -67,27 +36,6 @@ Sub call{fun}(control as IRibbonControl)
     Call {fun}
 End Sub
 """
-
-def make_id(text):
-    pattern = re.compile(r'[\W_]+', re.UNICODE)
-    return pattern.sub('', text)
-
-# from https://stackoverflow.com/questions/23218974/wrapping-class-method-in-try-except-using-decorator
-def handle_exceptions(fn):
-    @wraps(fn)
-    def wrapper(self, *args, **kwargs):
-        try:
-            return fn(self, *args, **kwargs)
-        except com_error as e:
-            exception_handler(e)
-    return wrapper
-
-def exception_handler(e):
-    if e.excepinfo[5] == '-2147352567':
-        logger.error(f'Path not found.')
-
-    else:
-        logger.error(e)
 
 class XLSMBuilder(object):
     XL = None
@@ -117,7 +65,7 @@ class XLSMBuilder(object):
         self.input = kwargs.get('input', self.input)
         self.output = kwargs.get('output', self.output)
         self.dry = kwargs.get('dry', self.dry)
-        self.ref_pattern = re.compile(r"^'@register\((.*)\)")
+        self.register_pattern = re.compile("^'@register\((.*)\)")
         if self.dry: self.dry_msg = '(not really due to dry run)'
 
     @handle_exceptions
@@ -143,7 +91,7 @@ class XLSMBuilder(object):
                 logger.info(f'Added {eachfilepath} as {eachmodule.Name}')
 
                 for i, line in enumerate(eachfile):
-                    ref_match  = self.ref_pattern.match(line)
+                    ref_match  = self.register_pattern.match(line)
 
                     if ref_match:
                         reference = ast.literal_eval(ref_match.group(1))
@@ -207,8 +155,8 @@ class XLAMBuilder(XLSMBuilder):
         self.ribbon = kwargs.get('ribbon', self.ribbon)
         if os.path.exists(self.ribbon_file_path):
             os.remove(self.ribbon_file_path)
-        self.tag_pattern = re.compile(r"^'@ribbon\((.*)\)")
-        self.sub_pattern = re.compile(r'^(?:Public |Private )?(?:Sub )(.*)(?:\((?:.*)?\))')
+        self.tag_pattern = re.compile("^'@ribbon\((.*)\)")
+        self.sub_pattern = re.compile('^(?:Public |Private )?(?:Sub )(.*)(?:\((?:.*)?\))')
         super(XLAMBuilder, self).__init__(*args, **kwargs)
 
     def build(self, callback=None):

@@ -1,10 +1,30 @@
-# from https://stackoverflow.com/a/35435548/447485
 import os
 import shutil
 import tempfile
+from functools import wraps
 from zipfile import ZipFile, ZIP_STORED, ZipInfo
 
+from logger import logger
 
+# from https://stackoverflow.com/questions/23218974/wrapping-class-method-in-try-except-using-decorator
+from pywintypes import com_error
+def handle_exceptions(fn):
+    @wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        try:
+            return fn(self, *args, **kwargs)
+        except com_error as e:
+            exception_handler(e)
+    return wrapper
+
+def exception_handler(e):
+    if e.excepinfo[5] == '-2147352567':
+        logger.error(f'Path not found.')
+
+    else:
+        logger.error(e)
+
+# from https://stackoverflow.com/a/35435548/447485
 class UpdateableZipFile(ZipFile):
     """
     Add delete (via remove_file) and update (via writestr and write methods)
