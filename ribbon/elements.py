@@ -1,8 +1,8 @@
 # TODO:
-# [ ] Do we need to pass make_id to each get_or_create* function or is there a more elegant solution?
-# [ ] If there isn't at more elegant solution, do we need __setattr__() in BaseElement or should we
-#     do away with entirely?
-# [ ] Add Separators() to test, create add_separator() and sibling functions
+# [ ] Do we need __setattr__() in BaseElement or should we do away with it entirely?
+# [x] Add Separators() to test, create add_separator() and sibling functions
+# [ ] Replace context = kwargs with kwargs.update({...})
+# [ ] Remove superfluous __init__s
 
 import random
 import re
@@ -24,6 +24,7 @@ class BaseElement(object):
         if kwargs.get('id', None) is None and kwargs.get('label', None) is not None:
             kwargs['id'] = sanitize_id(kwargs['label'])
         super().__init__(*args, **kwargs)
+        self.children = []
 
     def export(self, *args, **kwargs):
         kwargs.update({
@@ -31,13 +32,15 @@ class BaseElement(object):
         })
         super().export(*args, **kwargs)
 
-    def exportChildren(self, outfile, level, namespaceprefix_='',
+    def exportChildren_(self, outfile, level, namespaceprefix_='',
         namespacedef_=' xmlns:None="http://schemas.microsoft.com/office/2009/07/customui"', name_="",
         fromsubclass_=False, pretty_print=True):
 
         name_ = self.name
-        super().exportChildren(outfile, level, namespaceprefix_, namespacedef_, name_,
-            fromsubclass_, pretty_print)
+        
+        for child in self.children:
+            breakpoint()
+            child.export(outfile, level, namespaceprefix_, namespacedef_, name_, pretty_print)
 
 TAB_TYPES = {
     'normal' : None,
@@ -107,37 +110,27 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
             super(Ribbon, self).export(*args, **kwargs)
 
     def build_callbacks(self, *args, **kwargs):
-        """Generates a VBA module with all callbacks from each child button"""
+        """Generates a VBA module with all callbacks from each child element."""
         raise NotImplementedError
 
     def get_or_create_tabs(self, **kwargs):
         if self.tabs is None:
-            self.tabs = Tabs()
+            self.tabs = Tabs(**kwargs)
         return self.tabs
 
     def get_or_create_contextualTabs(self, **kwargs):
         if self.contextualTabs is None:
-            self.contextualTabs = ContextualTabs()
+            self.contextualTabs = ContextualTabs(**kwargs)
         return self.contextualTabs
 
-    # The methods below expose grandchildren of the Ribbon element directly
-    # for easier access, abstracting away the idiosyncrasies of customUI14.xml
+    # The methods below expose children / grandchildren of the Ribbon element directly
+    # for easier access, while also abstracting away idiosyncrasies of the customUI schema
     def get_or_create_tab(self, id=None, label=None, tab_type='normal', **kwargs):
-        if label is None and id is None:
-            raise ValueError(f'Either label or id must be provided.')
-        if id is None:
-            id = label
         id = sanitize_id(id)
-
-        if tab_type == 'normal':
-            tab = self.get_or_create_tabs().get_or_create_tab(id, **kwargs)
-
-        else:
-            tab = self.get_or_create_contextualTabs(). \
-                get_or_create_tabSet(TAB_TYPES[tab_type]). \
-                get_or_create_tab(id, **kwargs)
-
-        return tab
+        try:
+            return self.get_tab(id, tab_type)
+        except IndexError:
+            return self.create_tab(id, label, tab_type, **kwargs)
 
     def create_tab(self, id=None, label=None, tab_type='normal', **kwargs):
         if label is None and id is None:
@@ -147,35 +140,35 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
         id = sanitize_id(id)
 
         if tab_type == 'normal':
-            tab = self.get_or_create_tabs().create_tab(id, **kwargs)
+            tab_object = self.get_or_create_tabs().create_tab(id, **kwargs)
 
         else:
-            tab = self.get_or_create_contextualTabs(). \
+            tab_object = self.get_or_create_contextualTabs(). \
                 get_or_create_tabSet(TAB_TYPES[tab_type]). \
                 create_tab(id, **kwargs)
 
-        return tab
+        return tab_object
 
     def add_tab(self, tab_object, tab_type='normal', **kwargs):
         if tab_type == 'normal':
-            tab = self.get_or_create_tabs().add_tab(tab_object, **kwargs)
+            tab_object = self.get_or_create_tabs().add_tab(tab_object, **kwargs)
 
         else:
-            tab = self.get_or_create_contextualTabs().get_or_create_tabSet(
+            tab_object = self.get_or_create_contextualTabs().get_or_create_tabSet(
                 TAB_TYPES[tab_type]).add_tab(tab_object, **kwargs)
 
-        return tab
+        return tab_object
 
-    def get_tab(self, id, tab_type='normal', **kwargs):
+    def get_tab(self, id, tab_type='normal'):
         if tab_type == 'normal':
-            tab = self.get_or_create_tabs().get_tab(id, **kwargs)
+            tab_object = self.get_or_create_tabs().get_tab(id)
 
         else:
-            tab = self.get_or_create_contextualTabs(). \
+            tab_object = self.get_or_create_contextualTabs(). \
                 get_or_create_tabSet(TAB_TYPES[tab_type]). \
-                get_tab(id, **kwargs)
+                get_tab(id)
 
-        return tab
+        return tab_object
     
     def get_or_create_group(self, id=None, label=None, tab=None, tab_type='normal', tab_kwargs={}, **kwargs):
         if tab is None:
@@ -186,10 +179,8 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
             id = label
         id = sanitize_id(id)
 
-        group = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             get_or_create_group(id=id, label=label, **kwargs)
-
-        return group
 
     def create_group(self, id=None, label=None, tab=None, tab_type='normal', tab_kwargs={}, **kwargs):
         if tab is None:
@@ -200,16 +191,12 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
             id = label
         id = sanitize_id(id)
 
-        group = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             create_group(id=id, label=label, **kwargs)
 
-        return group
-
     def add_group(self, group_object, tab, tab_type='normal', tab_kwargs={}, **kwargs):
-        group = self.get_or_create_tab(tab, tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(tab, tab_type, **tab_kwargs). \
             add_group(group_object, **kwargs)
-
-        return group
 
     def get_or_create_button(self, id=None, label=None, tab=None, tab_type='normal', tab_kwargs={}, 
         group=None, group_kwargs={}, **kwargs):
@@ -223,10 +210,8 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
             id = label
         id = sanitize_id(id)
 
-        button = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             get_or_create_group(id=group, **group_kwargs).get_or_create_button(id=id, label=label, **kwargs)
-
-        return button
 
     def create_button(self, id=None, label=None, tab=None, tab_type='normal', tab_kwargs={},
         group=None, group_kwargs={}, **kwargs):
@@ -240,17 +225,13 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
             id = label
         id = sanitize_id(id)
 
-        button = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             get_or_create_group(id=group, **group_kwargs).create_button(id=id, label=label, **kwargs)
-
-        return button
 
     def add_button(self, button_object, tab=None, tab_type='normal', tab_kwargs={},
         group=None, group_kwargs={}, **kwargs):
-        button = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             get_or_create_group(id=group, **group_kwargs).add_button(button_object, **kwargs)
-
-        return button
 
     def create_separator(self, id=None, label=None, tab=None, tab_type='normal', tab_kwargs={},
         group=None, group_kwargs={}, **kwargs):
@@ -259,44 +240,39 @@ class Ribbon(BaseElement, customUI14base.CT_Ribbon):
         if group is None:
             raise ValueError(f'Specify which group the separator should be placed in.')
 
-        separator = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             get_or_create_group(id=group, **group_kwargs).create_separator(id=id, label=label, **kwargs)
-
-        return separator
 
     def add_separator(self, separator_object, tab=None, tab_type='normal', tab_kwargs={},
         group=None, group_kwargs={}, **kwargs):
-        separator = self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
+        return self.get_or_create_tab(id=tab, tab_type=tab_type, **tab_kwargs). \
             get_or_create_group(id=group, **group_kwargs).add_separator(separator_object, **kwargs)
-
-        return separator
 
 
 class ContextualTabs(customUI14base.CT_ContextualTabs):
+    children = []
+
     def __init__(self, **kwargs):
         super(ContextualTabs, self).__init__(**kwargs)
 
     def get_or_create_tabSet(self, idMso, **kwargs): # shadows CT_ContextualTabs definition
-        for _ in self.tabSet:
-            if _.idMso == idMso:
-                return _
-        
-        return self.create_tabSet(idMso)
+        try:
+            return self.get_tabSet(idMso)
+        except IndexError:
+            return self.create_tabSet(idMso, **kwargs)
 
     def create_tabSet(self, idMso, **kwargs):
-        for _ in self.tabSet:
-            if _.idMso == idMso:
-                raise ValueError(f'TabSet with idMso "{_.idMso} already exists."')
+        idMso = sanitize_id(idMso)
 
-        tabSet = TabSet(idMso=idMso)
-        super(ContextualTabs, self).add_tabSet(tabSet)
-        return tabSet
+        tabSet_object = TabSet(idMso=idMso, **kwargs)
+        return self.add_tabSet(tabSet_object)
     
     def add_tabSet(self, tabSet_object, **kwargs):
         for _ in self.tabSet:
             if _.idMso == tabSet_object.idMso:
                 raise ValueError(f'TabSet with idMso "{_.idMso} already exists."')
         
+        self.children.append(tabSet_object)
         super(ContextualTabs, self).add_tabSet(tabSet_object)
         return tabSet_object
     
@@ -305,24 +281,19 @@ class ContextualTabs(customUI14base.CT_ContextualTabs):
             if tabSet.idMso == idMso:
                 return tabSet
                 
-        raise IndexError(f'TabSet with idMso "{_.idMso}" does not exist')
+        raise IndexError(f'TabSet with idMso "{idMso}" does not exist')
 
 
 class TabsMixin(BaseElement):
     """Defines common methods for parents of <tab> elements"""
+    children = []
 
     def get_or_create_tab(self, id=None, label=None, **kwargs):
-        if label is None and id is None:
-            raise ValueError(f'Either label or id must be provided.')
-        if id is None:
-            id = label
         id = sanitize_id(id)
-
-        for _ in self.tab:
-            if _.id == id:
-                return _
-
-        return self.create_tab(id, **kwargs)
+        try:
+            return self.get_tab(id)
+        except IndexError:
+            return self.create_tab(id, label, **kwargs)
 
     def create_tab(self, id=None, label=None, **kwargs):
         if label is None and id is None:
@@ -331,19 +302,15 @@ class TabsMixin(BaseElement):
             id = label
         id = sanitize_id(id)
 
-        for _ in self.tab:
-            if _.id == id:
-                raise ValueError(f'Tab with id "{_.id}" already exists')
-
-        tab = Tab(id=id, **kwargs)
-        super(TabsMixin, self).add_tab(tab)
-        return tab
+        tab_object = Tab(id=id, **kwargs)
+        return self.add_tab(tab_object)
 
     def add_tab(self, tab_object, **kwargs):
         for _ in self.tab:
             if _.id == tab_object.id:
                 raise ValueError(f'Tab with id "{_.id}" already exists')
 
+        self.children.append(tab_object)
         super(TabsMixin, self).add_tab(tab_object)
         return tab_object
 
@@ -364,6 +331,9 @@ class TabSet(TabsMixin, customUI14base.CT_TabSet):
 
 
 class Tab(customUI14base.CT_Tab):
+    name = 'tab'
+    children = []
+
     def __init__(self, id=None, idQ=None, tag=None, idMso=None, label=None,
         getLabel=None, insertAfterMso=None, insertBeforeMso=None, insertAfterQ=None,
         insertBeforeQ=None, visible=None, getVisible=None, keytip=None, getKeytip=None,
@@ -374,27 +344,27 @@ class Tab(customUI14base.CT_Tab):
 
     def get_or_create_group(self, id, **kwargs):
         id = sanitize_id(id)
-        for _ in self.group:
-            if _.id == id:
-                return _
+        try:
+            return self.get_group(id)
+        except IndexError:
+            return self.create_group(id, **kwargs)
 
-        return self.create_group(id, **kwargs)
-
-    def create_group(self, id, **kwargs):
+    def create_group(self, id=None, label=None, **kwargs):
+        if label is None and id is None:
+            raise ValueError(f'Either label or id must be provided.')
+        if id is None:
+            id = label
         id = sanitize_id(id)
-        for _ in self.group:
-            if _.id == id:
-                raise ValueError(f'Group with id "{_.id}" already exists in Tab.{self.id}')
 
-        group = Group(id=id, **kwargs)
-        super(Tab, self).add_group(group)
-        return group
+        group_object = Group(id=id, **kwargs)
+        return self.add_group(group_object)
 
     def add_group(self, group_object, **kwargs):
         for _ in self.group:
             if _.id == group_object.id:
                 raise ValueError(f'Group with id "{_.id}" already exists in Tab.{self.id}')
 
+        self.children.append(group_object)
         super(Tab, self).add_group(group_object)
         return group_object
 
@@ -425,12 +395,12 @@ class Group(BaseElement, customUI14base.CT_Group):
             gallery, menu, dynamicMenu, splitButton, box, buttonGroup, separator,
             dialogBoxLauncher,  **kwargs)
 
-    def get_or_add_button(self, id, **kwargs):
-        for _ in self.button:
-            if _.id == id:
-                return _
-        
-        return self.create_button(id, kwargs)
+    def get_or_create_button(self, id, **kwargs):
+        id = sanitize_id(id)
+        try:
+            return self.get_button(id)
+        except IndexError:
+            return self.create_button(id, **kwargs)
 
     def create_button(self, id, **kwargs):
         strict = kwargs.pop('force', False)
@@ -447,15 +417,15 @@ class Group(BaseElement, customUI14base.CT_Group):
                     context['retry'] = retry - 2
                     return self.create_button(id, **context)
 
-        button = ButtonRegular(id=id, **kwargs)
-        super(Group, self).add_button(button)
-        return button
+        button_object = ButtonRegular(id=id, **kwargs)
+        return self.add_button(button_object)
 
     def add_button(self, button_object, **kwargs):
         for _ in self.button:
             if _.id == button_object.id:
                 raise ValueError(f'Button with id "{_.id}" already exists in Group.{self.id}')
 
+        self.children.append(button_object)
         super(Group, self).add_button(button_object)
         return button_object
 
@@ -472,8 +442,16 @@ class Group(BaseElement, customUI14base.CT_Group):
             id = sanitize_id(f'{r}')
 
         separator = Separator(id=id, **kwargs)
-        super(Group, self).add_separator(separator)
-        return separator
+        return self.add_separator(separator)
+
+    def add_separator(self, separator_object, **kwargs):
+        for _ in self.separator:
+            if _.id == separator_object.id:
+                raise ValueError(f'Separator with id "{_.id}" already exists in Group.{self.id}')
+
+        self.children.append(separator_object)
+        super(Group, self).add_separator(separator_object)
+        return separator_object
 
     def get_separator(self, id, **kwargs):
         for _ in self.separator:
