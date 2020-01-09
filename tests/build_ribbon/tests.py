@@ -1,76 +1,51 @@
-import unittest
+import io
 import os, sys
+import unittest
 
 from ribbon.elements import (Root, Ribbon, Group, Tabs, ContextualTabs, Tab,
     ButtonRegular, Separator)
 
-class Test_BuildRibbonManually(unittest.TestCase):
+class Test_BuildRibbon(unittest.TestCase):
     outfile = None
     outfile_path = ''
-
-    group_one = None
-    groups = None
-    tab_one = None
-    tabs = None
     ribbon = None
-    root = None
-    
+
     @classmethod
     def setUpClass(cls):
-        cls.outfile_path = 'tests/build_ribbon/ribbon.xml'
-        cls.outfile = open(cls.outfile_path, 'w')
-        cls.group_one = Group(id='productivityGroup', label='Productivity')
-        cls.tab_one = Tab(id='TerraTab', label='Terra', insertAfterMso='TabView', keytip='/')
+        cls.outfile = io.StringIO()
         cls.ribbon = Ribbon()
-        cls.tabs = Tabs()
-        cls.tabs.add_tab(cls.tab_one)
-        cls.groups = []
-        cls.groups.append(cls.group_one)
-        cls.root = Root()
-        cls.button_one = None
 
-    def test_001_create_group(self):
-        self.assertEqual(self.group_one.id, 'productivityGroup')
+    def test_001_add_content_to_ribbon(self):
+        self.ribbon.create_tab(id='mytab')
+        charttab = Tab(id='charttab')
+        self.ribbon.add_tab(charttab, tab_type='chart')
+        self.ribbon.create_tab(id='another chart tab', tab_type='chart')
+    
+    def test_002_general_test(self):
+        r = Ribbon()
+        r.create_tab(id='MyTab', label='My Tab', insertAfterMso='TabView', keytip='T')
+        r.create_tab(label='My Chart Tab', tab_type='chart') # generated id is 'MyChartTab'
 
-    def test_002_create_tab(self):
-        self.assertEqual(self.tab_one.id, 'TerraTab')
+        # the following line references an inexistent group, which is inferred
+        # and automatically created in the MyTab tab for simplicity 
+        r.create_button(label='Foo button', group='My Group', group_kwargs={'label': 'My Group'}, tab='MyTab')
+        r.create_button(label='Bar button', group='My Group', tab='MyTab', level=1)
+        r.create_separator(group='My Group', tab='My Tab', level=2)
+        r.create_button(label='Bar button', group='My Group', tab='MyTab')
+        r.create_button(label='Chart button', group='Chart Group', tab='MyChartTab', tab_type='chart')
+        r.build_ribbon(outfile=self.outfile)
 
-    def test_003_assign_tab_to_group(self):
-        self.tab_one.group = self.groups
-        self.assertEqual(self.tab_one.group, self.groups)
-
-    def test_004_add_buttons_to_group(self):
-        button_one = ButtonRegular(id='btnCircSwitch', label='Circularity', size='large',
-            onAction='callCircSwitch', imageMso='ReviewPreviousComment', keytip='C')
-        self.group_one.add_control(button_one)
-
-    def test_005_add_separator_to_group(self):
-        s = Separator()
-        self.group_one.add_control(s)
-        button_one = ButtonRegular(id='btnCircSwitch', label='Circularity', size='large',
-            onAction='callCircSwitch', imageMso='ReviewPreviousComment', keytip='C')
-        self.group_one.add_control(button_one)
-
-    def test_090_create_ribbon(self):
-        self.ribbon.tabs = self.tabs
-
-    def test_091_export_ribbon(self):
-        self.root.ribbon = self.ribbon
-        self.root.export(outfile=self.outfile, level=0, name_='customUI')
+    def _test_100_build_ribbon(self):
+        self.ribbon.build_ribbon(outfile=self.outfile)
 
     @classmethod
     def tearDownClass(cls):
-        cls.outfile.close()
+        cls.outfile.seek(0)
+        for l in cls.outfile.readlines():
+            sys.stdout.write(l)
+        sys.stdout.write('')
         print('\n')
-        with open(cls.outfile_path, 'r') as f:
-            for l in f.readlines():
-                sys.stdout.write(l)
-            sys.stdout.write('')
-        try:
-            os.unlink(cls.outfile_path)
-            pass
-        except:
-            pass
+        cls.outfile.close()
 
 if __name__ == '__main___':
     unittest.main()
