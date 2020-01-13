@@ -15,28 +15,21 @@ class Test_BuildRibbon(unittest.TestCase):
         cls.outfile = io.StringIO()
         cls.ribbon = Ribbon()
 
-    def test_001_add_content_to_ribbon(self):
-        self.ribbon.create_tab(id='mytab')
-        charttab = Tab(id='charttab')
-        self.ribbon.add_tab(charttab, tab_type='chart')
-        self.ribbon.create_tab(id='another chart tab', tab_type='chart')
-    
-    def test_002_general_test(self):
+    def test_001_general_test(self):
         r = Ribbon()
         r.create_tab(id='MyTab', label='My Tab', insertAfterMso='TabView', keytip='T')
-        r.create_tab(label='My Chart Tab', tab_type='chart') # generated id is 'MyChartTab'
+        # r.create_tab(label='My Chart Tab', tab_type='chart') # generated id is 'MyChartTab'
 
         # the following line references an inexistent group, which is inferred
         # and automatically created in the MyTab tab for simplicity 
         r.create_button(label='Foo button', group='My Group', group_kwargs={'label': 'My Group'}, tab='MyTab')
         r.create_button(label='Bar button', group='My Group', tab='MyTab', level=1)
-        r.create_separator(group='My Group', tab='My Tab', level=2)
+        r.create_separator(group='My Group', tab='My Tab')
         r.create_button(label='Bar button', group='My Group', tab='MyTab')
-        r.create_button(label='Chart button', group='Chart Group', tab='MyChartTab', tab_type='chart')
+        r.create_button(label='Chart button',
+            group='Chart Group', group_kwargs={'label': 'Productivity'},
+            tab='MyChartTab', tab_type='chart', tab_kwargs={'label': 'Terra'})
         r.build_ribbon(outfile=self.outfile)
-
-    def _test_100_build_ribbon(self):
-        self.ribbon.build_ribbon(outfile=self.outfile)
 
     @classmethod
     def tearDownClass(cls):
