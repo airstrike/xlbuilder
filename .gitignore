@@ -1,14 +1,5 @@
 ~$*
 *.sw*
-*.xlam
-*.xml
-*.xlsm
 __pycache__
-bin/
 .git/
-todo.md
 .vscode/
-customUI14base.py
-customUI14subs.py
-customUIbase.py
-customUIsubs.py
