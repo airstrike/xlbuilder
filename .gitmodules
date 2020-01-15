@@ -1,0 +1,3 @@
+[submodule "examples/Terra"]
+	path = examples/Terra
+	url = https://github.com/airstrike/Terra
