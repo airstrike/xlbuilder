@@ -10,7 +10,7 @@ lazy-object-proxy==1.4.3
 lxml==4.6.5
 mccabe==0.6.1
 pylint==2.4.4
-pywin32==224
+pywin32==301
 PyYAML==5.4
 requests==2.22.0
 six==1.14.0
